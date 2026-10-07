@@ -35,3 +35,18 @@ func (r *MemoryRepository) ListByUser(userID string) ([]Entry, error) {
 	}
 	return entries, nil
 }
+
+func (r *MemoryRepository) GetByID(
+	userID string,
+	entryID string,
+) (Entry, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, entry := range r.entries {
+		if entry.ID == entryID && entry.UserID == userID {
+			return entry, nil
+		}
+	}
+	return Entry{}, ErrEntryNotFound
+}

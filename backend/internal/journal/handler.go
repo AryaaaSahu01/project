@@ -19,6 +19,7 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/entries", h.createEntry)
 	mux.HandleFunc("GET /api/v1/entries", h.listEntries)
+	mux.HandleFunc("GET /api/v1/entries/{id}", h.getEntry)
 }
 
 func (h *Handler) createEntry(
@@ -108,4 +109,41 @@ func writeJSON(
 	w.WriteHeader(status)
 
 	json.NewEncoder(w).Encode(data)
+}
+
+func (h *Handler) getEntry(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	userID := "local-user"
+
+	entryID := r.PathValue("id")
+
+	entry, err := h.service.Get(userID, entryID)
+
+	if errors.Is(err, ErrEntryNotFound) {
+		writeJSON(
+			w,
+			http.StatusNotFound,
+			map[string]string{
+				"error": err.Error(),
+			},
+		)
+		return
+	}
+	if err != nil {
+		writeJSON(
+			w,
+			http.StatusInternalServerError,
+			map[string]string{
+				"error": "internal server error",
+			},
+		)
+		return
+	}
+	writeJSON(
+		w,
+		http.StatusOK,
+		entry,
+	)
 }

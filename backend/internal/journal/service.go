@@ -9,6 +9,7 @@ import (
 )
 
 var ErrEmptyEntry = errors.New("journal entry cannot be empty")
+var ErrEntryNotFound = errors.New("journal entry not found")
 
 type Service struct {
 	repository Repository
@@ -59,4 +60,11 @@ func newID() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+func (s *Service) Get(
+	userID string,
+	entryID string,
+) (Entry, error) {
+	return s.repository.GetByID(userID, entryID)
 }
