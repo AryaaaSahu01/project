@@ -10,6 +10,7 @@ import (
 
 var ErrEmptyEntry = errors.New("journal entry cannot be empty")
 var ErrEntryNotFound = errors.New("journal entry not found")
+var ErrNoFieldsToUpdate = errors.New("no fields to update")
 
 type Service struct {
 	repository Repository
@@ -67,4 +68,42 @@ func (s *Service) Get(
 	entryID string,
 ) (Entry, error) {
 	return s.repository.GetByID(userID, entryID)
+}
+
+func (s *Service) Update(
+	userID string,
+	entryID string,
+	input UpdateEntryInput,
+) (Entry, error) {
+	if input.Title == nil && input.Body == nil {
+		return Entry{}, ErrNoFieldsToUpdate
+	}
+
+	entry, err := s.repository.GetByID(userID, entryID)
+	if err != nil {
+		return Entry{}, err
+	}
+
+	if input.Title != nil {
+		entry.Title = strings.TrimSpace(*input.Title)
+	}
+
+	if input.Body != nil {
+		entry.Body = strings.TrimSpace(*input.Body)
+	}
+
+	if entry.Title == "" && entry.Body == "" {
+		return Entry{}, ErrEmptyEntry
+	}
+
+	entry.UpdatedAt = time.Now().UTC()
+
+	return s.repository.Update(entry)
+}
+
+func (s *Service) Delete(
+	userID string,
+	entryID string,
+) error {
+	return s.repository.Delete(userID, entryID)
 }

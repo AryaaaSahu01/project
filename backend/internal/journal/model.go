@@ -15,3 +15,8 @@ type CreateEntryInput struct {
 	Title string `json:"title"`
 	Body  string `json:"body"`
 }
+
+type UpdateEntryInput struct {
+	Title *string `json:"title"`
+	Body  *string `json:"body"`
+}

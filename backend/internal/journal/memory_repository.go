@@ -50,3 +50,38 @@ func (r *MemoryRepository) GetByID(
 	}
 	return Entry{}, ErrEntryNotFound
 }
+
+func (r *MemoryRepository) Update(entry Entry) (Entry, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i := range r.entries {
+		if r.entries[i].ID == entry.ID &&
+			r.entries[i].UserID == entry.UserID {
+			r.entries[i] = entry
+			return entry, nil
+		}
+	}
+	return Entry{}, ErrEntryNotFound
+}
+
+func (r *MemoryRepository) Delete(
+	userID string,
+	entryID string,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i, entry := range r.entries {
+		if entry.ID == entryID && entry.UserID == userID {
+			copy(r.entries[i:], r.entries[i+1:])
+
+			last := len(r.entries) - 1
+			r.entries[last] = Entry{}
+			r.entries = r.entries[:last]
+
+			return nil
+		}
+	}
+	return ErrEntryNotFound
+}
