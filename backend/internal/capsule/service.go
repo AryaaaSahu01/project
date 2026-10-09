@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 )
@@ -119,4 +120,97 @@ func (s *Service) Open(
 		SealedAt: c.SealedAt,
 		UnlockAt: c.UnlockAt,
 	}, nil
+}
+
+func (s *Service) GetMetadata(
+	userID string,
+	capsuleID string,
+) (CapsuleMetadata, error) {
+	c, err := s.repository.GetByID(userID, capsuleID)
+
+	if err != nil {
+		return CapsuleMetadata{}, err
+	}
+
+	if c.Status == StatusDestroyed {
+		return CapsuleMetadata{}, ErrCapsuleNotFound
+	}
+
+	now := s.now().UTC()
+
+	canOpen := !now.Before(c.UnlockAt) &&
+		(c.Status == StatusSealed || c.Status == StatusReturned)
+
+	return CapsuleMetadata{
+		ID:            c.ID,
+		SourceEntryID: c.SourceEntryID,
+		Status:        c.Status,
+		SealedAt:      c.SealedAt,
+		UnlockAt:      c.UnlockAt,
+		CanOpen:       canOpen,
+	}, nil
+}
+
+func (s *Service) Destroy(
+	userID string,
+	capsuleID string,
+) error {
+	userID = strings.TrimSpace(userID)
+	capsuleID = strings.TrimSpace(capsuleID)
+
+	if userID == "" {
+		return ErrInvalidUser
+	}
+
+	if capsuleID == "" {
+		return ErrCapsuleNotFound
+	}
+
+	return s.repository.Delete(userID, capsuleID)
+}
+
+func (s *Service) List(
+	userID string,
+) ([]CapsuleMetadata, error) {
+
+	userID = strings.TrimSpace(userID)
+
+	if userID == "" {
+		return nil, ErrInvalidUser
+	}
+
+	capsules, err := s.repository.ListByUser(userID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	now := s.now().UTC()
+	result := make([]CapsuleMetadata, 0, len(capsules))
+
+	for _, c := range capsules {
+		if c.Status == StatusDestroyed {
+			continue
+		}
+		canOpen := !now.Before(c.UnlockAt) &&
+			(c.Status == StatusSealed || c.Status == StatusReturned)
+
+		result = append(result, CapsuleMetadata{
+			ID:            c.ID,
+			SourceEntryID: c.SourceEntryID,
+			Status:        c.Status,
+			SealedAt:      c.SealedAt,
+			UnlockAt:      c.UnlockAt,
+			CanOpen:       canOpen,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].UnlockAt.Equal(result[j].UnlockAt) {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].UnlockAt.Before(result[j].UnlockAt)
+
+	})
+	return result, nil
+
 }

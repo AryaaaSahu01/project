@@ -29,4 +29,14 @@ type OpenedCapsule struct {
 	Body     string    `json:"body"`
 	SealedAt time.Time `json:"sealed_at"`
 	UnlockAt time.Time `json:"unlock_at"`
+	CanOpen  bool      `json:"can_open"`
+}
+
+type CapsuleMetadata struct {
+	ID            string    `json:"id"`
+	SourceEntryID string    `json:"source_entry_id"`
+	Status        Status    `json:"status"`
+	SealedAt      time.Time `json:"sealed_at"`
+	UnlockAt      time.Time `json:"unlock_at"`
+	CanOpen       bool      `json:"can_open"`
 }

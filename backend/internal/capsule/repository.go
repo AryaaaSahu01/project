@@ -10,4 +10,5 @@ type Repository interface {
 	GetByID(userID string, capsuleID string) (Capsule, error)
 	Update(c Capsule) (Capsule, error)
 	Delete(userID string, capsuleID string) error
+	ListByUser(userID string) ([]Capsule, error)
 }

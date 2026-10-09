@@ -71,3 +71,19 @@ func (r *MemoryRepository) Delete(
 	return nil
 
 }
+
+func (r *MemoryRepository) ListByUser(
+	userID string,
+) ([]Capsule, error) {
+	r.mu.Lock()
+	defer r.mu.RUnlock()
+
+	capsules := make([]Capsule, 0)
+
+	for _, c := range r.capsules {
+		if c.UserID == userID {
+			capsules = append(capsules, c)
+		}
+	}
+	return capsules, nil
+}
