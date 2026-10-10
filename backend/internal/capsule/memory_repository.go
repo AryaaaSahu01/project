@@ -75,7 +75,7 @@ func (r *MemoryRepository) Delete(
 func (r *MemoryRepository) ListByUser(
 	userID string,
 ) ([]Capsule, error) {
-	r.mu.Lock()
+	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	capsules := make([]Capsule, 0)

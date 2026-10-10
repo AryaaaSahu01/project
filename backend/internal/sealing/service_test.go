@@ -65,3 +65,111 @@ func TestSealEntry(t *testing.T) {
 		t.Error("original writing was not preserved")
 	}
 }
+
+func TestSealInvalidDataKeepsJournal(t *testing.T) {
+	current := time.Date(
+		2026, 10, 9, 0, 0, 0, 0, time.UTC,
+	)
+
+	journalRepo := journal.NewMemoryRepository()
+	journals := journal.NewService(journalRepo)
+
+	capsuleRepo := capsule.NewMemoryRepository()
+	capsules := capsule.NewService(
+		capsuleRepo,
+		func() time.Time { return current },
+	)
+
+	service := NewService(journals, capsules)
+
+	entry, err := journals.Create("user-1", journal.CreateEntryInput{
+		Title: "Important Entry",
+		Body:  "This writing must not disappear",
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = service.SealEntry(
+		"user-1",
+		entry.ID,
+		current.Add(-time.Hour),
+	)
+
+	if !errors.Is(err, capsule.ErrInvalidUnlockAt) {
+		t.Fatalf("expected invalid date, got %v", err)
+	}
+
+	saved, err := journals.Get("user-1", entry.ID)
+
+	if err != nil {
+		t.Fatalf("journal entry was lost: %v", err)
+	}
+
+	if saved.Body != entry.Body {
+		t.Error("original journal content changed")
+	}
+
+	list, err := capsules.List("user-1")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(list) != 0 {
+		t.Error("failed sealing should not create a capsule")
+	}
+}
+
+func TestSealEntryOwnership(t *testing.T) {
+	current := time.Date(
+		2026, 10, 9, 0, 0, 0, 0, time.UTC,
+	)
+
+	journalRepo := journal.NewMemoryRepository()
+	journals := journal.NewService(journalRepo)
+
+	capsuleRepo := capsule.NewMemoryRepository()
+	capsules := capsule.NewService(
+		capsuleRepo,
+		func() time.Time { return current },
+	)
+
+	service := NewService(journals, capsules)
+
+	entry, err := journals.Create("user-1", journal.CreateEntryInput{
+		Title: "private writing",
+		Body:  "only my account should access this",
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = service.SealEntry(
+		"user-2",
+		entry.ID,
+		current.Add(24*time.Hour),
+	)
+
+	if !errors.Is(err, journal.ErrEntryNotFound) {
+		t.Fatalf("expected entry not found, got %v", err)
+	}
+
+	_, err = journals.Get("user-1", entry.ID)
+	if err != nil {
+		t.Errorf("owner should retain the entry: %v", err)
+	}
+
+	list, err := capsules.List("user-2")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(list) != 0 {
+		t.Error("unauthorized sealing created a capsule")
+	}
+
+}
