@@ -4,10 +4,12 @@ import (
 	"errors"
 	"journalapp/internal/capsule"
 	"journalapp/internal/journal"
+	"sync"
 	"time"
 )
 
 type Service struct {
+	mu       sync.Mutex
 	journals *journal.Service
 	capsules *capsule.Service
 }
@@ -27,6 +29,10 @@ func (s *Service) SealEntry(
 	entryID string,
 	unlockAt time.Time,
 ) (capsule.CapsuleMetadata, error) {
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	entry, err := s.journals.Get(userID, entryID)
 	if err != nil {
 		return capsule.CapsuleMetadata{}, err

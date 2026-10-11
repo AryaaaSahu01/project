@@ -178,6 +178,10 @@ func TestCapsuleHTTPFlow(t *testing.T) {
 
 	requireStatus(t, res, http.StatusOK)
 
+	if strings.Contains(res.Body.String(), `"can_open"`) {
+		t.Fatal("opened capsule response has an unnecessary can_open field")
+	}
+
 	var opened struct {
 		Title string `json:"title"`
 		Body  string `json:"body"`
@@ -353,5 +357,117 @@ func TestMissingCapsuleHTTP(t *testing.T) {
 			)
 			requireStatus(t, res, http.StatusNotFound)
 		})
+	}
+}
+func TestJournalHTTPRejectsBadJSON(t *testing.T) {
+	router := newMux(time.Now)
+
+	tests := []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{
+			name:   "unknown field",
+			body:   `{"title":"Hello","unexpected":true}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "multiple JSON documents",
+			body:   `{"title":"One"}{"title":"Two"}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "malformed JSON",
+			body:   `{"title":`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name: "oversized request",
+			body: `{"title":"` +
+				strings.Repeat("x", 1<<20) + `"}`,
+			status: http.StatusRequestEntityTooLarge,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := performRequest(
+				router,
+				"POST",
+				"/api/v1/entries",
+				tt.body,
+			)
+
+			requireStatus(t, res, tt.status)
+		})
+	}
+}
+
+func TestJournalHTTPRejectMissingContentType(t *testing.T) {
+	router := newMux(time.Now)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/entries",
+		strings.NewReader(`{"title":"Hello"}`),
+	)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	requireStatus(
+		t,
+		recorder,
+		http.StatusUnsupportedMediaType,
+	)
+}
+
+func TestSealHTTPRejectUnknownFields(t *testing.T) {
+	current := time.Date(
+		2026, 10, 11, 0, 0, 0, 0, time.UTC,
+	)
+
+	router := newMux(func() time.Time {
+		return current
+	})
+
+	res := performRequest(
+		router,
+		"POST",
+		"/api/v1/entries",
+		`{"title":"Important","body":"Do not lose me."}`,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+
+	entryID := requireID(t, res)
+
+	unlockAt := current.Add(24 * time.Hour)
+	body := `{"unlock_at":"` +
+		unlockAt.Format(time.RFC3339Nano) +
+		`","unexpected":true}`
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/entries/"+entryID+"/seal",
+		body,
+	)
+	requireStatus(t, res, http.StatusBadRequest)
+
+	res = performRequest(
+		router,
+		"GET",
+		"/api/v1/entries/"+entryID,
+		"",
+	)
+
+	requireStatus(t, res, http.StatusOK)
+
+	if !strings.Contains(
+		res.Body.String(),
+		"Do not lose me.",
+	) {
+		t.Fatal("failed sealing lost the journal content")
 	}
 }

@@ -3,6 +3,7 @@ package journal
 import (
 	"encoding/json"
 	"errors"
+	"journalapp/internal/httpapi"
 	"net/http"
 )
 
@@ -30,13 +31,19 @@ func (h *Handler) createEntry(
 ) {
 	var input CreateEntryInput
 
-	err := json.NewDecoder(r.Body).Decode(&input)
+	status, err := httpapi.DecodeJSON(
+		w,
+		r,
+		&input,
+		httpapi.MaxEntryBytes,
+	)
+
 	if err != nil {
 		writeJSON(
 			w,
-			http.StatusBadRequest,
+			status,
 			map[string]string{
-				"error": "invalid request body",
+				"error": err.Error(),
 			},
 		)
 		return
@@ -156,10 +163,15 @@ func (h *Handler) UpdateEntry(
 ) {
 	var input UpdateEntryInput
 
-	err := json.NewDecoder(r.Body).Decode(&input)
+	status, err := httpapi.DecodeJSON(
+		w,
+		r,
+		&input,
+		httpapi.MaxEntryBytes,
+	)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest,
-			map[string]string{"error": "invalid request body"})
+		writeJSON(w, status,
+			map[string]string{"error": err.Error()})
 		return
 	}
 

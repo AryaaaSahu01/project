@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"journalapp/internal/capsule"
+	"journalapp/internal/httpapi"
 	"journalapp/internal/journal"
 	"net/http"
 	"time"
@@ -34,12 +35,16 @@ func (h *Handler) sealEntry(
 ) {
 	var input SealRequest
 
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
+	status, err := httpapi.DecodeJSON(
+		w,
+		r,
+		&input,
+		httpapi.MaxSealBytes,
+	)
 
-	if err := decoder.Decode(&input); err != nil {
-		writeJSON(w, http.StatusBadRequest,
-			map[string]string{"error": "invalid request body"})
+	if err != nil {
+		writeJSON(w, status,
+			map[string]string{"error": err.Error()})
 		return
 	}
 

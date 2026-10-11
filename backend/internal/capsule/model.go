@@ -29,7 +29,6 @@ type OpenedCapsule struct {
 	Body     string    `json:"body"`
 	SealedAt time.Time `json:"sealed_at"`
 	UnlockAt time.Time `json:"unlock_at"`
-	CanOpen  bool      `json:"can_open"`
 }
 
 type CapsuleMetadata struct {

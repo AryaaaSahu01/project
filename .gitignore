@@ -1,0 +1,35 @@
+#Environment variables and credentials
+**/.env
+**/.env.*
+!**/.env.example
+
+#go build outputs
+*.exe 
+*.test
+*.out 
+backend/bin/
+coverage/
+
+#React Native 
+node_modules/
+.expo/
+dist/
+build/
+web-build/
+
+#Local database
+
+*.database
+*.db 
+*.sqlite
+*.sqlite3
+
+#operating system files
+.DS_store
+Thumbs.db
+#IDE files
+
+.idea/
+.vscode/
+*.swp
+*.tmp

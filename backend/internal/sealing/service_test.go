@@ -4,6 +4,7 @@ import (
 	"errors"
 	"journalapp/internal/capsule"
 	"journalapp/internal/journal"
+	"sync"
 	"testing"
 	"time"
 )
@@ -172,4 +173,99 @@ func TestSealEntryOwnership(t *testing.T) {
 		t.Error("unauthorized sealing created a capsule")
 	}
 
+}
+
+func TestConcurrentSealEntry(t *testing.T) {
+	current := time.Date(
+		2026, 10, 11, 0, 0, 0, 0, time.UTC,
+	)
+
+	journalRepo := journal.NewMemoryRepository()
+	journals := journal.NewService(journalRepo)
+
+	capsuleRepo := capsule.NewMemoryRepository()
+	capsules := capsule.NewService(
+		capsuleRepo,
+		func() time.Time { return current },
+	)
+
+	service := NewService(journals, capsules)
+
+	entry, err := journals.Create(
+		"user-1",
+		journal.CreateEntryInput{
+			Title: "One memory",
+			Body:  "Seal this only once.",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const requests = 8
+
+	start := make(chan struct{})
+	results := make(chan error, requests)
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < requests; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			<-start
+
+			_, err := service.SealEntry(
+				"user-1",
+				entry.ID,
+				current.Add(24*time.Hour),
+			)
+			results <- err
+		}()
+
+	}
+	close(start)
+
+	wg.Wait()
+	close(results)
+
+	successes := 0
+	notFound := 0
+
+	for err := range results {
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, journal.ErrEntryNotFound):
+			notFound++
+
+		default:
+			t.Fatalf("unexpected sealing error: %v", err)
+		}
+	}
+	if successes != 1 {
+		t.Errorf("expected 1 successfull seal, got %d", successes)
+	}
+
+	if notFound != requests-1 {
+		t.Errorf(
+			"expected %d not-found results, got %d",
+			requests-1,
+			notFound,
+		)
+	}
+
+	list, err := capsules.List("user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(list) != 1 {
+		t.Fatalf(
+			"expected exactly 1 capsule, got %d",
+			len(list),
+		)
+	}
 }

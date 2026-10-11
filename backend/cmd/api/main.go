@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"time"
 
 	"journalapp/internal/capsule"
@@ -44,16 +48,52 @@ func newMux(clock func() time.Time) *http.ServeMux {
 }
 
 func main() {
-	address := ":8080"
+	server := &http.Server{
+		Addr:              "127.0.0.1:8080",
+		Handler:           newMux(time.Now),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    32 << 10,
+	}
 
-	log.Printf(
-		"Journal API listening on http://localhost%s",
-		address,
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
 	)
 
-	err := http.ListenAndServe(address, newMux(time.Now))
+	defer stop()
 
-	if err != nil {
+	shutdownDone := make(chan struct{})
+
+	go func() {
+		<-ctx.Done()
+
+		shutdownCtx, cancel := context.WithTimeout(
+			context.Background(),
+			10*time.Second,
+		)
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("server shutdown error: %v", err)
+		}
+
+		close(shutdownDone)
+	}()
+
+	log.Printf(
+		"Journal API listening on http:??%s",
+		server.Addr,
+	)
+
+	err := server.ListenAndServe()
+
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+
+	<-shutdownDone
+
 }
