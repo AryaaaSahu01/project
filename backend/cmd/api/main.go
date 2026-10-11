@@ -10,59 +10,48 @@ import (
 	"journalapp/internal/sealing"
 )
 
-func main() {
-	repository := journal.NewMemoryRepository()
+func newMux(clock func() time.Time) *http.ServeMux {
+	journalRepo := journal.NewMemoryRepository()
+	journalService := journal.NewService(journalRepo)
 
-	service := journal.NewService(repository)
-
-	handler := journal.NewHandler(service)
-
-	capsuleRepsitory := capsule.NewMemoryRepository()
-
-	capsuleService := capsule.NewService(
-		capsuleRepsitory,
-		time.Now,
-	)
-
-	capsuleHandler := capsule.NewHandler(capsuleService)
+	capsuleRepo := capsule.NewMemoryRepository()
+	capsuleService := capsule.NewService(capsuleRepo, clock)
 
 	sealingService := sealing.NewService(
-		service,
+		journalService,
 		capsuleService,
 	)
 
+	journalHandler := journal.NewHandler(journalService)
+	capsuleHandler := capsule.NewHandler(capsuleService)
 	sealingHandler := sealing.NewHandler(sealingService)
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc(
-		"GET /health",
-		func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /health", func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
 
-			w.Header().Set(
-				"Content-Type",
-				"application/json",
-			)
-			w.WriteHeader(http.StatusOK)
-
-			w.Write([]byte(`{"status":"ok"}`))
-		},
-	)
-
-	handler.RegisterRoutes(mux)
-	sealingHandler.RegisterRoutes(mux)
+	journalHandler.RegisterRoutes(mux)
 	capsuleHandler.RegisterRoutes(mux)
+	sealingHandler.RegisterRoutes(mux)
 
+	return mux
+}
+
+func main() {
 	address := ":8080"
 
 	log.Printf(
 		"Journal API listening on http://localhost%s",
 		address,
 	)
-	err := http.ListenAndServe(
-		address,
-		mux,
-	)
+
+	err := http.ListenAndServe(address, newMux(time.Now))
 
 	if err != nil {
 		log.Fatal(err)

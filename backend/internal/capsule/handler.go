@@ -16,7 +16,9 @@ func NewHandler(service *Service) *Handler {
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/capsules", h.listCapsules)
-	mux.HandleFunc("GET /api/v1/capsules{id}", h.getMetadata)
+	mux.HandleFunc("GET /api/v1/capsules/{id}", h.getMetadata)
+	mux.HandleFunc("POST /api/v1/capsules/{id}/open", h.openCapsule)
+	mux.HandleFunc("DELETE /api/v1/capsules/{id}", h.deleteCapsule)
 }
 
 func (h *Handler) listCapsules(
@@ -46,7 +48,7 @@ func (h *Handler) getMetadata(
 	metadata, err := h.service.GetMetadata(userID, capsuleID)
 
 	if errors.Is(err, ErrCapsuleNotFound) {
-		writeJSON(w, http.StatusFound,
+		writeJSON(w, http.StatusNotFound,
 			map[string]string{"error": "capsule not found"})
 		return
 	}
@@ -68,4 +70,64 @@ func writeJSON(
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(data)
+}
+
+func (h *Handler) openCapsule(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	userID := "local-user"
+	capsuleID := r.PathValue("id")
+
+	opened, err := h.service.Open(userID, capsuleID)
+
+	switch {
+	case errors.Is(err, ErrCapsuleNotFound):
+		writeJSON(w, http.StatusNotFound,
+			map[string]string{"error": "capsule not found"})
+
+	case errors.Is(err, ErrCapsuleLocked):
+		writeJSON(w, http.StatusLocked,
+			map[string]string{"error": "capsule is still sealed"})
+
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError,
+			map[string]string{"error": "internal server error"})
+
+	default:
+		writeJSON(w, http.StatusOK, opened)
+
+	}
+}
+
+func (h *Handler) deleteCapsule(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	userID := "local-user"
+	capsuleID := r.PathValue("id")
+
+	err := h.service.Destroy(userID, capsuleID)
+
+	switch {
+
+	case errors.Is(err, ErrCapsuleNotFound):
+		writeJSON(
+			w,
+			http.StatusNotFound,
+			map[string]string{
+				"error": "capsule not found",
+			},
+		)
+	case err != nil:
+		writeJSON(
+			w,
+			http.StatusInternalServerError,
+			map[string]string{
+				"error": "internal server error",
+			},
+		)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
