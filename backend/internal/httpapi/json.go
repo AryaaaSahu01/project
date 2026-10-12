@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	MaxEntryBytes int64 = 1 << 20
-	MaxSealBytes  int64 = 4 << 10
+	MaxEntryBytes      int64 = 1 << 20
+	MaxSealBytes       int64 = 4 << 10
+	MaxReflectionBytes int64 = 128 << 10
 )
 
 func DecodeJSON(

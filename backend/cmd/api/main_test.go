@@ -471,3 +471,335 @@ func TestSealHTTPRejectUnknownFields(t *testing.T) {
 		t.Fatal("failed sealing lost the journal content")
 	}
 }
+
+func TestReflectionHTTPFlow(t *testing.T) {
+	current := time.Date(
+		2026, 10, 12, 0, 0, 0, 0, time.UTC,
+	)
+
+	router := newMux(func() time.Time {
+		return current
+	})
+
+	res := performRequest(
+		router,
+		"POST",
+		"/api/v1/entries",
+		`{"title":"Past me","body":"Remember today."}`,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+
+	entryID := requireID(t, res)
+
+	unlockAt := current.Add(time.Hour)
+
+	sealJSON := `{"unlock_at":"` +
+		unlockAt.Format(time.RFC3339Nano) + `"}`
+
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/entries/"+entryID+"/seal",
+		sealJSON,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+
+	capsuleID := requireID(t, res)
+
+	path := "/api/v1/capsules/" +
+		capsuleID + "/reflections"
+
+	res = performRequest(
+		router,
+		"POST",
+		path,
+		`{"body":"Too early"}`,
+	)
+	requireStatus(t, res, http.StatusConflict)
+
+	current = current.Add(2 * time.Hour)
+
+	res = performRequest(
+		router,
+		"POST",
+		path,
+		`{"body":"Still unopened"}`,
+	)
+
+	requireStatus(t, res, http.StatusConflict)
+
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/capsules/"+capsuleID+"/open",
+		"",
+	)
+
+	requireStatus(t, res, http.StatusOK)
+
+	res = performRequest(
+		router,
+		"POST",
+		path,
+		`{"body":"First reflection"}`,
+	)
+	requireStatus(t, res, http.StatusCreated)
+
+	firstID := requireID(t, res)
+
+	current = current.Add(time.Minute)
+
+	res = performRequest(
+		router,
+		"POST",
+		path,
+		`{"body":"Second reflection"}`,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+
+	res = performRequest(
+		router,
+		"GET",
+		path,
+		"",
+	)
+
+	requireStatus(t, res, http.StatusOK)
+
+	var reflections []struct {
+		ID        string `json:"id"`
+		CapsuleID string `json:"capsule_id"`
+		Body      string `json:"body"`
+	}
+
+	if err := json.Unmarshal(
+		res.Body.Bytes(),
+		&reflections,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(reflections) != 2 {
+		t.Fatalf(
+			"expected 2 reflections, got %d",
+			len(reflections),
+		)
+	}
+
+	if reflections[0].ID != firstID ||
+		reflections[0].Body != "First reflection" ||
+		reflections[1].Body != "Second reflection" {
+		t.Fatal("reflection history is incorrect")
+	}
+
+	for _, reflection := range reflections {
+		if reflection.CapsuleID != capsuleID {
+			t.Fatal("reflections belongs to wrong capsule")
+		}
+	}
+
+	res = performRequest(
+		router,
+		"GET",
+		"/api/v1/capsules/"+capsuleID,
+		"",
+	)
+
+	requireStatus(t, res, http.StatusOK)
+
+	if strings.Contains(
+		res.Body.String(),
+		"First reflection",
+	) {
+		t.Fatal("capsule metadata exposed reflection content")
+	}
+
+	res = performRequest(
+		router,
+		"DELETE",
+		"/api/v1/capsules/"+capsuleID,
+		"",
+	)
+
+	requireStatus(t, res, http.StatusNoContent)
+
+	res = performRequest(
+		router,
+		"GET",
+		path,
+		"",
+	)
+	requireStatus(t, res, http.StatusNotFound)
+}
+
+func newOpenendCapsuleRouter(
+	t *testing.T,
+) (http.Handler, string) {
+	t.Helper()
+
+	current := time.Date(
+		2026, 10, 12, 0, 0, 0, 0, time.UTC,
+	)
+
+	router := newMux(func() time.Time {
+		return current
+	})
+
+	res := performRequest(
+		router,
+		"POST",
+		"/api/v1/entries",
+		`{"title":"Memory", "body":"Original writing"}`,
+	)
+	requireStatus(t, res, http.StatusCreated)
+
+	entryID := requireID(t, res)
+	unlockAt := current.Add(time.Hour)
+
+	sealJSON := `{"unlock_at":"` +
+		unlockAt.Format(time.RFC3339Nano) + `"}`
+
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/entries/"+entryID+"/seal",
+		sealJSON,
+	)
+	requireStatus(t, res, http.StatusCreated)
+	capsuleID := requireID(t, res)
+
+	current = current.Add(2 * time.Hour)
+
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/capsules/"+capsuleID+"/open",
+		"",
+	)
+	requireStatus(t, res, http.StatusOK)
+
+	return router, capsuleID
+}
+
+func TestReflectionHTTPValidation(t *testing.T) {
+	router, capsuleID := newOpenendCapsuleRouter(t)
+
+	path := "/api/v1/capsules/" +
+		capsuleID + "/reflections"
+
+	tests := []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{
+			name:   "empty reflection",
+			body:   `{"body":"   "}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "missing body",
+			body:   `{}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "unknown field",
+			body:   `{"body":"Hello","unknown":"true}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "malformed JSON",
+			body:   `{"body":}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name: "reflection too long",
+			body: `{"body":"` +
+				strings.Repeat("x", 20001) + `"}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name: "oversized request",
+			body: `{"body":"` +
+				strings.Repeat("x", 1<<17) + `"}`,
+			status: http.StatusRequestEntityTooLarge,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := performRequest(
+				router,
+				"POST",
+				path,
+				tt.body,
+			)
+
+			requireStatus(t, res, tt.status)
+		})
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		path,
+		strings.NewReader(`{"body":"Hello"}`),
+	)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	requireStatus(
+		t,
+		recorder,
+		http.StatusUnsupportedMediaType,
+	)
+
+	res := performRequest(router, "GET", path, "")
+	requireStatus(t, res, http.StatusOK)
+
+	if strings.TrimSpace(res.Body.String()) != "[]" {
+		t.Fatalf(
+			"invalid requests created reflections : %s",
+			res.Body.String(),
+		)
+	}
+}
+
+func TestReflectionHTTPMissingCapsule(t *testing.T) {
+	router := newMux(time.Now)
+
+	path := "/api/v1/capsules/missing/reflections"
+
+	res := performRequest(
+		router,
+		"GET",
+		path,
+		"",
+	)
+	requireStatus(t, res, http.StatusNotFound)
+
+	if !strings.Contains(res.Body.String(), "capsule not found") {
+		t.Fatalf(
+			"expected capsule not found error, got %s",
+			res.Body.String(),
+		)
+	}
+
+	res = performRequest(
+		router,
+		"POST",
+		path,
+		`{"body":"This should fail"}`,
+	)
+	requireStatus(t, res, http.StatusNotFound)
+
+	if !strings.Contains(res.Body.String(), "capsule not found") {
+		t.Fatalf(
+			"expected capsule not found error, got %s",
+			res.Body.String(),
+		)
+	}
+}
