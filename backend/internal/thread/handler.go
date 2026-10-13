@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"journalapp/internal/capsule"
 	"journalapp/internal/httpapi"
@@ -26,6 +27,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc(
 		"GET /api/v1/capsules/{id}/reflections",
 		h.listReflections,
+	)
+
+	mux.HandleFunc(
+		"POST /api/v1/capsules/{id}/reflections/{reflectionID}/seal",
+		h.sealReflection,
 	)
 }
 
@@ -130,4 +136,68 @@ func writeJSON(
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(data)
+}
+
+type SealReflectionRequest struct {
+	UnlockAt time.Time `json:"unlock_at"`
+}
+
+func (h *Handler) sealReflection(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	var input SealReflectionRequest
+
+	status, err := httpapi.DecodeJSON(
+		w,
+		r,
+		&input,
+		httpapi.MaxSealBytes,
+	)
+
+	if err != nil {
+		writeJSON(w, status, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	userID := "local-user"
+	parentID := r.PathValue("id")
+	reflectionID := r.PathValue("reflectionID")
+
+	child, err := h.service.SealReflection(
+		userID,
+		parentID,
+		reflectionID,
+		input.UnlockAt,
+	)
+
+	switch {
+	case errors.Is(err, capsule.ErrCapsuleNotFound),
+		errors.Is(err, ErrReflectionNotFound):
+		writeJSON(w, http.StatusNotFound,
+			map[string]string{
+				"error": "capsule or reflection not found",
+			})
+	case errors.Is(err, ErrCapsuleNotReturned),
+		errors.Is(err, ErrReflectionAlreadySealed),
+		errors.Is(err, capsule.ErrCapsuleParentNotReturned):
+		writeJSON(w, http.StatusConflict,
+			map[string]string{
+				"error": err.Error(),
+			})
+	case errors.Is(err, capsule.ErrInvalidUnlockAt):
+		writeJSON(w, http.StatusBadRequest,
+			map[string]string{
+				"error": err.Error(),
+			})
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError,
+			map[string]string{
+				"error": "internal server error",
+			})
+	default:
+		writeJSON(w, http.StatusCreated, child)
+	}
 }

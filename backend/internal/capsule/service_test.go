@@ -388,3 +388,62 @@ func TestListCapsules(t *testing.T) {
 		t.Error("capsule should now be available")
 	}
 }
+
+func TestCapsulePreservesReflectionSource(t *testing.T) {
+	current := time.Date(
+		2026, 10, 13, 0, 0, 0, 0, time.UTC,
+	)
+
+	service := NewService(
+		NewMemoryRepository(),
+		func() time.Time { return current },
+	)
+
+	parent, err := service.Seal("user-1", SealInput{
+		SourceEntryID: "entry-1",
+		Title:         "Original",
+		Body:          "Past writing",
+		UnlockAt:      current.Add(time.Hour),
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	current = current.Add(2 * time.Hour)
+
+	_, err = service.Open("user-1", parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	child, err := service.Seal("user-1", SealInput{
+		SourceReflectionID: "reflection-1",
+		ParentCapsuleID:    parent.ID,
+		Title:              "Then & Now",
+		Body:               "New writing",
+		UnlockAt:           current.Add(24 * time.Hour),
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if child.SourceReflectionID != "reflection-1" {
+		t.Fatal("source reflection ID was not preserved")
+	}
+
+	if child.SourceEntryID != "" {
+		t.Fatal("reflection capsule has a journal source")
+	}
+
+	metadata, err := service.GetMetadata("user-1", child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if metadata.SourceReflectionID != "reflection-1" ||
+		metadata.ParentCapsuleID != parent.ID {
+		t.Fatal("capsule metadata lost lineage")
+	}
+}

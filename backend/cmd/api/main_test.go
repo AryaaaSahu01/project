@@ -803,3 +803,313 @@ func TestReflectionHTTPMissingCapsule(t *testing.T) {
 		)
 	}
 }
+
+func TestResealReflectionHTTPFlow(t *testing.T) {
+	current := time.Date(
+		2026, 10, 13, 0, 0, 0, 0, time.UTC,
+	)
+
+	router := newMux(func() time.Time {
+		return current
+	})
+	res := performRequest(
+		router,
+		"POST",
+		"/api/v1/entries",
+		`{"title":"Past me","body":"An old memory"}`,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+
+	entryID := requireID(t, res)
+
+	unlockAt := current.Add(time.Hour)
+
+	sealBody := `{"unlock_at":"` +
+		unlockAt.Format(time.RFC3339Nano) + `"}`
+
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/entries/"+entryID+"/seal",
+		sealBody,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+
+	parentID := requireID(t, res)
+
+	current = current.Add(2 * time.Hour)
+
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/capsules/"+parentID+"/open",
+		"",
+	)
+
+	requireStatus(t, res, http.StatusOK)
+
+	reflectionText := "My life has changed."
+
+	reflectionPath := "/api/v1/capsules/" +
+		parentID + "/reflections"
+
+	res = performRequest(
+		router,
+		"POST",
+		reflectionPath,
+		`{"body":"My life has changed."}`,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+
+	reflectionID := requireID(t, res)
+
+	resealPath := reflectionPath +
+		"/" + reflectionID + "/seal"
+
+	childUnlockAt := current.Add(24 * time.Hour)
+
+	resealBody := `{"unlock_at":"` +
+		childUnlockAt.Format(time.RFC3339Nano) + `"}`
+
+	res = performRequest(
+		router,
+		"POST",
+		resealPath,
+		resealBody,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+
+	var child struct {
+		ID                 string `json:"id"`
+		ParentCapsuleID    string `json:"parent_capsule_id"`
+		SourceReflectionID string `json:"source_reflection_id"`
+		Status             string `json:"status"`
+	}
+
+	if err := json.Unmarshal(
+		res.Body.Bytes(),
+		&child,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if child.ID == "" ||
+		child.ParentCapsuleID != parentID ||
+		child.SourceReflectionID != reflectionID ||
+		child.Status != "sealed" {
+		t.Fatal("incorrect child capsule metadata")
+	}
+
+	res = performRequest(
+		router,
+		"GET",
+		reflectionPath,
+		"",
+	)
+
+	requireStatus(t, res, http.StatusOK)
+
+	var reflections []struct {
+		Body            string `json:"body"`
+		Status          string `json:"status"`
+		SealedCapsuleID string `json:"sealed_capsule_id"`
+	}
+
+	if err := json.Unmarshal(
+		res.Body.Bytes(),
+		&reflections,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(reflections) != 1 {
+		t.Fatalf("expected 1 reflection, got %d", len(reflections))
+	}
+
+	if reflections[0].Body != "" ||
+		reflections[0].Status != "sealed" ||
+		reflections[0].SealedCapsuleID != child.ID {
+		t.Fatal("resealed reflection state is incorrect")
+	}
+
+	if strings.Contains(res.Body.String(), reflectionText) {
+		t.Fatal("sealed reflection text leaked")
+	}
+
+	res = performRequest(
+		router,
+		"POST",
+		resealPath,
+		resealBody,
+	)
+
+	requireStatus(t, res, http.StatusConflict)
+
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/capsules/"+child.ID+"/open",
+		"",
+	)
+
+	requireStatus(t, res, http.StatusLocked)
+
+	res = performRequest(
+		router,
+		"DELETE",
+		"/api/v1/capsules/"+parentID,
+		"",
+	)
+	requireStatus(t, res, http.StatusConflict)
+
+	current = current.Add(25 * time.Hour)
+
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/capsules/"+child.ID+"/open",
+		"",
+	)
+
+	requireStatus(t, res, http.StatusOK)
+
+	var opened struct {
+		Body string `json:"body"`
+	}
+
+	if err := json.Unmarshal(
+		res.Body.Bytes(),
+		&opened,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if opened.Body != reflectionText {
+		t.Fatal("child capsule lost the reflection text")
+	}
+}
+
+func TestResealReflectionHTTPValidation(t *testing.T) {
+	router, parentID := newOpenendCapsuleRouter(t)
+
+	reflectionPath := "/api/v1/capsules/" +
+		parentID + "/reflections"
+
+	res := performRequest(
+		router,
+		"POST",
+		reflectionPath,
+		`{"body":"Keep this reflection safe."}`,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+
+	reflectionID := requireID(t, res)
+
+	path := reflectionPath +
+		"/" + reflectionID + "/seal"
+
+	tests := []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{
+			name:   "missing unlock date",
+			body:   `{}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "past unlock date",
+			body:   `{"unlock_at":"2020-01-01T00:00:00Z"}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "invalid time",
+			body:   `{"unlock_at":"tomorrow"}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "unknown field",
+			body:   `{"unlock_at":"2099-01-01T00:00:00Z","extra":true}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name: "oversized request",
+			body: `{"unlock_at":"2099-01-01T00:00:00Z","padding":"` +
+				strings.Repeat("x", 4096) + `"}`,
+			status: http.StatusRequestEntityTooLarge,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := performRequest(
+				router,
+				"POST",
+				path,
+				tt.body,
+			)
+
+			requireStatus(t, res, tt.status)
+		})
+	}
+	res = performRequest(
+		router,
+		"GET",
+		reflectionPath,
+		"",
+	)
+	requireStatus(t, res, http.StatusOK)
+
+	if !strings.Contains(
+		res.Body.String(),
+		"Keep this reflection safe.",
+	) {
+		t.Fatal("invalid resealing lost the reflection")
+	}
+}
+
+func TestResealReflectionHTTPNotFound(t *testing.T) {
+	router, parentID := newOpenendCapsuleRouter(t)
+
+	body := `{"unlock_at":"2099-01-01T00:00:00Z"}`
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{
+			name: "missing reflection",
+			path: "/api/v1/capsules/" +
+				parentID + "/reflections/missing/seal",
+		},
+		{
+			name: "missing parent",
+			path: "/api/v1/capsules/missing/reflections/" +
+				"missing/seal",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := performRequest(
+				router,
+				"POST",
+				tt.path,
+				body,
+			)
+			requireStatus(t, res, http.StatusNotFound)
+
+			if !strings.Contains(
+				res.Body.String(),
+				"capsule or reflection not found",
+			) {
+				t.Fatal("expected application not-found error")
+			}
+		})
+	}
+}
