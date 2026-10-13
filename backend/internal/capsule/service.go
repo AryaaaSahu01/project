@@ -14,12 +14,15 @@ var ErrInvalidUnlockAt = errors.New("unlock date must be in the future")
 var ErrInvalidSourceEntry = errors.New("source entry ID is required")
 var ErrInvalidUser = errors.New("user ID is required")
 var ErrCapsuleLocked = errors.New("Capsule is still sealed")
+var ErrInvalidParentCapsule = errors.New("invalid parent capsule")
 
 type SealInput struct {
-	SourceEntryID string
-	Title         string
-	Body          string
-	UnlockAt      time.Time
+	SourceEntryID      string
+	SourceReflectionID string
+	ParentCapsuleID    string
+	Title              string
+	Body               string
+	UnlockAt           time.Time
 }
 
 type Service struct {
@@ -43,14 +46,24 @@ func (s *Service) Seal(
 ) (Capsule, error) {
 
 	userID = strings.TrimSpace(userID)
-	sourceID := strings.TrimSpace(input.SourceEntryID)
+	sourceEntryID := strings.TrimSpace(input.SourceEntryID)
+	sourceReflectionID := strings.TrimSpace(input.SourceReflectionID)
+	parentID := strings.TrimSpace(input.ParentCapsuleID)
 
 	if userID == "" {
 		return Capsule{}, ErrInvalidUser
 	}
 
-	if sourceID == "" {
+	if (sourceEntryID == "") == (sourceReflectionID == "") {
 		return Capsule{}, ErrInvalidSourceEntry
+	}
+
+	if sourceEntryID != "" && parentID != "" {
+		return Capsule{}, ErrInvalidParentCapsule
+	}
+
+	if sourceReflectionID != "" && parentID == "" {
+		return Capsule{}, ErrInvalidParentCapsule
 	}
 
 	title := strings.TrimSpace(input.Title)
@@ -74,14 +87,16 @@ func (s *Service) Seal(
 	}
 
 	c := Capsule{
-		ID:            hex.EncodeToString(idBytes),
-		UserID:        userID,
-		SourceEntryID: sourceID,
-		SealedAt:      now,
-		UnlockAt:      unlockAt,
-		Status:        StatusSealed,
-		title:         title,
-		body:          body,
+		ID:                 hex.EncodeToString(idBytes),
+		UserID:             userID,
+		SourceEntryID:      sourceEntryID,
+		SourceReflectionID: sourceReflectionID,
+		ParentCapsuleID:    parentID,
+		SealedAt:           now,
+		UnlockAt:           unlockAt,
+		Status:             StatusSealed,
+		title:              title,
+		body:               body,
 	}
 
 	return s.repository.Create(c)
@@ -142,12 +157,14 @@ func (s *Service) GetMetadata(
 		(c.Status == StatusSealed || c.Status == StatusReturned)
 
 	return CapsuleMetadata{
-		ID:            c.ID,
-		SourceEntryID: c.SourceEntryID,
-		Status:        c.Status,
-		SealedAt:      c.SealedAt,
-		UnlockAt:      c.UnlockAt,
-		CanOpen:       canOpen,
+		ID:                 c.ID,
+		SourceEntryID:      c.SourceEntryID,
+		SourceReflectionID: c.SourceReflectionID,
+		ParentCapsuleID:    c.ParentCapsuleID,
+		Status:             c.Status,
+		SealedAt:           c.SealedAt,
+		UnlockAt:           c.UnlockAt,
+		CanOpen:            canOpen,
 	}, nil
 }
 
@@ -196,12 +213,14 @@ func (s *Service) List(
 			(c.Status == StatusSealed || c.Status == StatusReturned)
 
 		result = append(result, CapsuleMetadata{
-			ID:            c.ID,
-			SourceEntryID: c.SourceEntryID,
-			Status:        c.Status,
-			SealedAt:      c.SealedAt,
-			UnlockAt:      c.UnlockAt,
-			CanOpen:       canOpen,
+			ID:                 c.ID,
+			SourceEntryID:      c.SourceEntryID,
+			SourceReflectionID: c.SourceReflectionID,
+			ParentCapsuleID:    c.ParentCapsuleID,
+			Status:             c.Status,
+			SealedAt:           c.SealedAt,
+			UnlockAt:           c.UnlockAt,
+			CanOpen:            canOpen,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {

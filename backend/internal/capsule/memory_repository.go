@@ -67,6 +67,11 @@ func (r *MemoryRepository) Delete(
 	if !exists || c.UserID != userID {
 		return ErrCapsuleNotFound
 	}
+	for _, child := range r.capsules {
+		if child.ParentCapsuleID == capsuleID {
+			return ErrCapsuleHasChildren
+		}
+	}
 	delete(r.capsules, capsuleID)
 	return nil
 

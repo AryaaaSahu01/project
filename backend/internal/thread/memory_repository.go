@@ -44,3 +44,39 @@ func (r *MemoryRepository) ListByCapsule(
 	}
 	return result, nil
 }
+
+func (r *MemoryRepository) GetByID(
+	userID string,
+	reflectionID string,
+) (Reflection, error) {
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	reflection, exists := r.reflections[reflectionID]
+
+	if !exists || reflection.UserID != userID {
+		return Reflection{}, ErrReflectionNotFound
+	}
+
+	return reflection, nil
+}
+
+func (r *MemoryRepository) Update(
+	reflection Reflection,
+) (Reflection, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existing, exists := r.reflections[reflection.ID]
+
+	if !exists ||
+		existing.UserID != reflection.UserID ||
+		existing.CapsuleID != reflection.CapsuleID {
+		return Reflection{}, ErrReflectionNotFound
+	}
+
+	r.reflections[reflection.ID] = reflection
+
+	return reflection, nil
+}

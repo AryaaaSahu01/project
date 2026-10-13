@@ -119,6 +119,14 @@ func (h *Handler) deleteCapsule(
 				"error": "capsule not found",
 			},
 		)
+	case errors.Is(err, ErrCapsuleHasChildren):
+		writeJSON(
+			w,
+			http.StatusConflict,
+			map[string]string{
+				"error": "capsule has child capsules",
+			},
+		)
 	case err != nil:
 		writeJSON(
 			w,

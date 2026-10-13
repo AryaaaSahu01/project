@@ -11,13 +11,14 @@ const (
 )
 
 type Capsule struct {
-	ID              string
-	UserID          string
-	SourceEntryID   string
-	SealedAt        time.Time
-	UnlockAt        time.Time
-	Status          Status
-	ParentCapsuleID string
+	ID                 string
+	UserID             string
+	SourceEntryID      string
+	SealedAt           time.Time
+	UnlockAt           time.Time
+	Status             Status
+	ParentCapsuleID    string
+	SourceReflectionID string
 
 	title string
 	body  string
@@ -32,10 +33,12 @@ type OpenedCapsule struct {
 }
 
 type CapsuleMetadata struct {
-	ID            string    `json:"id"`
-	SourceEntryID string    `json:"source_entry_id"`
-	Status        Status    `json:"status"`
-	SealedAt      time.Time `json:"sealed_at"`
-	UnlockAt      time.Time `json:"unlock_at"`
-	CanOpen       bool      `json:"can_open"`
+	ID                 string    `json:"id"`
+	SourceEntryID      string    `json:"source_entry_id,omitempty"`
+	SourceReflectionID string    `json:"source_reflection_id,omitempty"`
+	ParentCapsuleID    string    `json:"parent_capsule_id,omitempty"`
+	Status             Status    `json:"status"`
+	SealedAt           time.Time `json:"sealed_at"`
+	UnlockAt           time.Time `json:"unlock_at"`
+	CanOpen            bool      `json:"can_open"`
 }

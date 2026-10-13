@@ -7,6 +7,7 @@ import (
 	"journalapp/internal/capsule"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 )
@@ -23,11 +24,15 @@ var (
 	ErrReflectionTooLong = errors.New(
 		"reflection exceeds maximum length",
 	)
+	ErrReflectionAlreadySealed = errors.New(
+		"reflection is already sealed",
+	)
 )
 
 const MaxReflectionRunes = 20000
 
 type Service struct {
+	mu         sync.Mutex
 	repository Repository
 	capsules   *capsule.Service
 	now        func() time.Time
@@ -73,6 +78,9 @@ func (s *Service) Create(
 	userID = strings.TrimSpace(userID)
 	capsuleID = strings.TrimSpace(capsuleID)
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if err := s.requireReturned(userID, capsuleID); err != nil {
 		return Reflection{}, err
 	}
@@ -99,6 +107,7 @@ func (s *Service) Create(
 		CapsuleID: capsuleID,
 		Body:      body,
 		CreatedAt: s.now().UTC(),
+		Status:    StatusDraft,
 	}
 
 	return s.repository.Create(reflection)
@@ -137,4 +146,88 @@ func (s *Service) List(
 	})
 
 	return reflections, nil
+}
+
+func (s *Service) SealReflection(
+	userID string,
+	parentCapsuleID string,
+	reflectionID string,
+	unlockAt time.Time,
+) (capsule.CapsuleMetadata, error) {
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	userID = strings.TrimSpace(userID)
+
+	parentCapsuleID = strings.TrimSpace(parentCapsuleID)
+
+	reflectionID = strings.TrimSpace(reflectionID)
+
+	if err := s.requireReturned(
+		userID,
+		parentCapsuleID,
+	); err != nil {
+		return capsule.CapsuleMetadata{}, err
+	}
+
+	reflection, err := s.repository.GetByID(
+		userID,
+		reflectionID,
+	)
+
+	if err != nil {
+		return capsule.CapsuleMetadata{}, err
+	}
+
+	if reflection.CapsuleID != parentCapsuleID {
+		return capsule.CapsuleMetadata{},
+			ErrReflectionNotFound
+	}
+
+	if reflection.Status == StatusSealed {
+		return capsule.CapsuleMetadata{},
+			ErrReflectionAlreadySealed
+	}
+
+	if reflection.Status != StatusDraft {
+		return capsule.CapsuleMetadata{},
+			ErrReflectionNotFound
+	}
+	child, err := s.capsules.Seal(
+		userID,
+		capsule.SealInput{
+			SourceReflectionID: reflection.ID,
+			ParentCapsuleID:    parentCapsuleID,
+			Title:              "Then & Now",
+			Body:               reflection.Body,
+			UnlockAt:           unlockAt,
+		},
+	)
+
+	if err != nil {
+		return capsule.CapsuleMetadata{}, err
+	}
+
+	reflection.Status = StatusSealed
+	reflection.Body = ""
+	reflection.SealedCapsuleID = child.ID
+
+	_, err = s.repository.Update(reflection)
+
+	if err != nil {
+		rollbackErr := s.capsules.Destroy(
+			userID,
+			child.ID,
+		)
+
+		return capsule.CapsuleMetadata{},
+			errors.Join(err, rollbackErr)
+	}
+
+	return s.capsules.GetMetadata(
+		userID,
+		child.ID,
+	)
+
 }
