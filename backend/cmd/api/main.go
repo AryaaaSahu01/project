@@ -36,7 +36,10 @@ func newMux(clock func() time.Time) *http.ServeMux {
 	)
 
 	journalHandler := journal.NewHandler(journalService)
-	capsuleHandler := capsule.NewHandler(capsuleService)
+	capsuleHandler := capsule.NewHandler(
+		capsuleService,
+		threadService,
+	)
 	sealingHandler := sealing.NewHandler(sealingService)
 	threadHandler := thread.NewHandler(threadService)
 
@@ -95,7 +98,7 @@ func main() {
 	}()
 
 	log.Printf(
-		"Journal API listening on http:??%s",
+		"Journal API listening on http://%s",
 		server.Addr,
 	)
 

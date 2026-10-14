@@ -6,12 +6,27 @@ import (
 	"net/http"
 )
 
-type Handler struct {
-	service *Service
+type CapsuleDeleter interface {
+	DeleteCapsule(
+		userID string,
+		capsuleID string,
+	) error
 }
 
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+type Handler struct {
+	service *Service
+	deleter CapsuleDeleter
+}
+
+func NewHandler(
+	service *Service,
+	deleter CapsuleDeleter,
+) *Handler {
+	return &Handler{
+		service: service,
+		deleter: deleter,
+	}
+
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
@@ -107,7 +122,7 @@ func (h *Handler) deleteCapsule(
 	userID := "local-user"
 	capsuleID := r.PathValue("id")
 
-	err := h.service.Destroy(userID, capsuleID)
+	err := h.deleter.DeleteCapsule(userID, capsuleID)
 
 	switch {
 
@@ -125,6 +140,14 @@ func (h *Handler) deleteCapsule(
 			http.StatusConflict,
 			map[string]string{
 				"error": "capsule has child capsules",
+			},
+		)
+	case errors.Is(err, ErrCapsuleLinkedToReflection):
+		writeJSON(
+			w,
+			http.StatusConflict,
+			map[string]string{
+				"error": "linked child capsule cannot be deleted invidually",
 			},
 		)
 	case err != nil:

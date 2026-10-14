@@ -5,6 +5,7 @@ import (
 	"errors"
 	"journalapp/internal/capsule"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -403,4 +404,226 @@ func TestFailedResealKeepsReflection(t *testing.T) {
 	if len(capsuleList) != 1 {
 		t.Fatal("failed reseal unexpectedly created a child capsule")
 	}
+}
+
+func TestDeleteCapsuleRemoveDraftReflections(t *testing.T) {
+	threads, capsules, now, capsuleID := newFixture(t)
+
+	*now = now.Add(2 * time.Hour)
+
+	if _, err := capsules.Open(
+		"user-1",
+		capsuleID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, body := range []string{
+		"First draft",
+		"Second draft",
+	} {
+		_, err := threads.Create(
+			"user-1",
+			capsuleID,
+			CreateReflectionInput{Body: body},
+		)
+
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err := threads.DeleteCapsule(
+		"user-2",
+		capsuleID,
+	)
+
+	if !errors.Is(err, capsule.ErrCapsuleNotFound) {
+		t.Fatalf("expected ownership rejection, got %v", err)
+	}
+
+	err = threads.DeleteCapsule(
+		"user-1",
+		capsuleID,
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = capsules.GetMetadata(
+		"user-1",
+		capsuleID,
+	)
+
+	if !errors.Is(err, capsule.ErrCapsuleNotFound) {
+		t.Fatal("deleted capsule is still accessible")
+	}
+
+	remaining, err := threads.repository.ListByCapsule(
+		"user-1",
+		capsuleID,
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(remaining) != 0 {
+		t.Fatalf(
+			"expected no orphaned reflections, got %d",
+			len(remaining),
+		)
+	}
+}
+
+func TestDeleteCapsulePreservesSealedChild(t *testing.T) {
+	threads, capsules, now, parentID := newFixture(t)
+
+	*now = now.Add(2 * time.Hour)
+
+	if _, err := capsules.Open(
+		"user-1",
+		parentID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	reflection, err := threads.Create(
+		"user-1",
+		parentID,
+		CreateReflectionInput{
+			Body: "My future self should read this.",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	child, err := threads.SealReflection(
+		"user-1",
+		parentID,
+		reflection.ID,
+		now.Add(24*time.Hour),
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = threads.DeleteCapsule(
+		"user-1",
+		parentID,
+	)
+
+	if !errors.Is(err, capusle.ErrCapsuleHasChildren) {
+		t.Fatalf("expected parent deletion conflict, got %v", err)
+	}
+
+	err = threads.DeleteCapsule(
+		"user-1",
+		child.ID,
+	)
+
+	if !errors.Is(err, capsule.ErrCapsuleLinkedToReflection) {
+		t.Fatalf("expected linked-child conflict, got %v", err)
+	}
+
+	metadata, err := capsules.GetMetadata(
+		"user-1",
+		child.ID,
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if metadata.ParentCapsuleID != parentID {
+		t.Fatal("child lost parent relationship")
+
+	}
+
+	list, err := threads.List("user-1", parentID)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(list) != 1 ||
+		list[0].Status != StatusSealed ||
+		list[0].SealedCapsuleID != child.ID ||
+		list[0].Body != "" {
+		t.Fatal("sealed reflection state was corrupted")
+	}
+}
+
+func TestConcurrentCreateAndDeleteNoOrphans(t *testing.T) {
+	threads, capsules, now, capsuleID := newFixture(t)
+
+	*now = now.Add(2 * time.Hour)
+
+	if _, err := capsules.Open(
+		"user-1",
+		capsuleID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	var createErr error
+	var deleteErr error
+
+	start := make(chan struct{})
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		<-start
+
+		_, createErr = threads.Create(
+			"user-1",
+			capsuleID,
+			CreateReflectionInput{
+				Body: "Concurrent reflection",
+			},
+		)
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		<-start
+
+		deleteErr = threads.DeleteCapsule(
+			"user-1",
+			capsuleID,
+		)
+	}()
+
+	close(start)
+	wg.Wait()
+
+	if deleteErr != nil {
+		t.Fatalf("capsule deletion failed: %v", deleteErr)
+	}
+
+	if createErr != nil &&
+		!errors.Is(createErr, capsule.ErrCapsuleNotFound) {
+		t.Fatalf("unexpected cretaion error :%v", createErr)
+	}
+
+	remaining, err := threads.repository.ListByCapsule(
+		"user-1",
+		capsuleID,
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(remaining) != 0 {
+		t.Fatal("concurrent operation left orphaned reflections")
+	}
+
 }

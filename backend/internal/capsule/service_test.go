@@ -447,3 +447,75 @@ func TestCapsulePreservesReflectionSource(t *testing.T) {
 		t.Fatal("capsule metadata lost lineage")
 	}
 }
+
+func TestChildCapsuleRequiresReturnedParent(t *testing.T) {
+	current := time.Date(
+		2026, 10, 14, 0, 0, 0, 0, time.UTC,
+	)
+
+	service := NewService(
+		NewMemoryRepository(),
+		func() time.Time { return current },
+	)
+
+	sealChild := func(
+		userID string,
+		parentID string,
+	) (Capsule, error) {
+		return service.Seal(userID, SealInput{
+			SourceReflectionID: "reflection-1",
+			ParentCapsuleID:    parentID,
+			Body:               "New Reflection",
+			UnlockAt:           current.Add(24 * time.Hour),
+		})
+	}
+
+	_, err := sealChild("user-1", "missing")
+
+	if !errors.Is(err, ErrCapsuleNotFound) {
+		t.Fatalf("expected missing parent, got %v", err)
+	}
+
+	parent, err := service.Seal(
+		"user-1",
+		SealInput{
+			SourceEntryID: "entry-1",
+			Body:          "Original memory",
+			UnlockAt:      current.Add(time.Hour),
+		},
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !errors.Is(err, ErrCapsuleNotFound) {
+		t.Fatalf("expected ownership rejection, got %v", err)
+	}
+
+	_, err = sealChild("user-1", parent.ID)
+
+	if !errors.Is(err, ErrCapsuleParentNotReturned) {
+		t.Fatalf("expected unopened parent rejection, got %v", err)
+	}
+
+	current = current.Add(2 * time.Hour)
+
+	if _, err := service.Open("user-1", parent.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	child, err := sealChild("user-1", parent.ID)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if child.ParentCapsuleID != parent.ID {
+		t.Fatal("child has incorrect parent ")
+	}
+
+	if child.SourceReflectionID != "reflection-1" {
+		t.Fatal("child lost source reflection ID")
+	}
+}
