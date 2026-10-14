@@ -966,6 +966,33 @@ func TestResealReflectionHTTPFlow(t *testing.T) {
 	)
 	requireStatus(t, res, http.StatusConflict)
 
+	//a resealed child should not be deleted individually
+
+	res = performRequest(
+		router,
+		"DELETE",
+		"/api/v1/capsules/"+child.ID,
+		"",
+	)
+
+	requireStatus(t, res, http.StatusConflict)
+
+	if !strings.Contains(
+		res.Body.String(),
+		"linked child capsule",
+	) {
+		t.Fatalf(
+			"expected linked-child conflict, got %s",
+			res.Body.String(),
+		)
+	}
+	res = performRequest(
+		router,
+		"GET",
+		"/api/v1/capsules/"+child.ID,
+		"",
+	)
+
 	current = current.Add(25 * time.Hour)
 
 	res = performRequest(
