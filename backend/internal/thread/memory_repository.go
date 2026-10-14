@@ -1,6 +1,8 @@
 package thread
 
-import "sync"
+import (
+	"sync"
+)
 
 type MemoryRepository struct {
 	mu          sync.RWMutex
@@ -79,4 +81,29 @@ func (r *MemoryRepository) Update(
 	r.reflections[reflection.ID] = reflection
 
 	return reflection, nil
+}
+
+func (r *MemoryRepository) DeleteByCapsule(
+	userID string,
+	capsuleID string,
+) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	deleted := 0
+
+	for id, reflection := range r.reflections {
+		if reflection.UserID != userID {
+			continue
+		}
+
+		if reflection.CapsuleID != capsuleID {
+			continue
+		}
+
+		delete(r.reflections, id)
+		deleted++
+	}
+
+	return deleted
 }

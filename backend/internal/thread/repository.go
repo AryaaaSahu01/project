@@ -1,6 +1,8 @@
 package thread
 
-import "errors"
+import (
+	"errors"
+)
 
 var (
 	ErrReflectionAlreadyExists = errors.New(
@@ -26,4 +28,9 @@ type Repository interface {
 		userID string,
 		capsuleID string,
 	) ([]Reflection, error)
+
+	DeleteByCapsule(
+		userID string,
+		capsuleID string,
+	) int
 }

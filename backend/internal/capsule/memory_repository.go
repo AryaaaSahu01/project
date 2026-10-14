@@ -21,6 +21,17 @@ func (r *MemoryRepository) Create(c Capsule) (Capsule, error) {
 		return Capsule{}, ErrCapsuleAlreadyExists
 	}
 
+	if c.ParentCapsuleID != "" {
+		parent, exists := r.capsules[c.ParentCapsuleID]
+
+		if !exists || parent.UserID != c.UserID {
+			return Capsule{}, ErrCapsuleNotFound
+		}
+
+		if parent.Status != StatusReturned {
+			return Capsule{}, ErrCapsuleParentNotReturned
+		}
+	}
 	r.capsules[c.ID] = c
 	return c, nil
 }
