@@ -117,6 +117,9 @@ func (s *Service) List(
 	userID string,
 	capsuleID string,
 ) ([]Reflection, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	userID = strings.TrimSpace(userID)
 	capsuleID = strings.TrimSpace(capsuleID)
 

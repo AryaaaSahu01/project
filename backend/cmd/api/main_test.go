@@ -993,6 +993,8 @@ func TestResealReflectionHTTPFlow(t *testing.T) {
 		"",
 	)
 
+	requireStatus(t, res, http.StatusOK)
+
 	current = current.Add(25 * time.Hour)
 
 	res = performRequest(

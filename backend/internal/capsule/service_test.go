@@ -489,6 +489,8 @@ func TestChildCapsuleRequiresReturnedParent(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	_, err = sealChild("user-2", parent.ID)
+
 	if !errors.Is(err, ErrCapsuleNotFound) {
 		t.Fatalf("expected ownership rejection, got %v", err)
 	}
