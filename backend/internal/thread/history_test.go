@@ -40,6 +40,8 @@ func TestGetHistoryMultiGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	*now = now.Add(time.Minute)
+
 	secretB := "Private writing for capsule B"
 
 	reflectionB, err := threads.Create(
