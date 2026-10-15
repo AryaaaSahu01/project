@@ -516,7 +516,7 @@ func TestDeleteCapsulePreservesSealedChild(t *testing.T) {
 		parentID,
 	)
 
-	if !errors.Is(err, capusle.ErrCapsuleHasChildren) {
+	if !errors.Is(err, capsule.ErrCapsuleHasChildren) {
 		t.Fatalf("expected parent deletion conflict, got %v", err)
 	}
 

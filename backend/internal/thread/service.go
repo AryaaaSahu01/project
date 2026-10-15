@@ -269,3 +269,40 @@ func (s *Service) DeleteByCapsule(
 
 	return nil
 }
+
+func (s *Service) DeleteCapsule(
+	userID string,
+	caspuleID string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	userID = strings.TrimSpace(userID)
+	capsuleID = strings.TrimSpace(capsuleID)
+
+	metadata, err := s.capsules.GetMetadata(
+		userID,
+		capsuleID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if metadata.SourceReflectionID != "" {
+		return capsule.ErrCapsuleLinkedToReflection
+	}
+
+	if err := s.capsules.Destroy(
+		userID,
+		capsuleID,
+	); err != nil {
+		return err
+	}
+
+	s.repository.DeleteByCapsule(
+		userID,
+		capsuleID,
+	)
+	return nil
+}
