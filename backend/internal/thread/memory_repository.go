@@ -108,11 +108,10 @@ func (r *MemoryRepository) DeleteByCapsule(
 	return deleted
 }
 
-
-func (r *MemoryRepository)	DeleteByCapsules{
+func (r *MemoryRepository) DeleteByCapsules(
 	userID string,
 	capsuleIDs []string,
-} int {
+) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -136,5 +135,7 @@ func (r *MemoryRepository)	DeleteByCapsules{
 		delete(r.reflections, id)
 		deleted++
 	}
+
 	return deleted
+
 }

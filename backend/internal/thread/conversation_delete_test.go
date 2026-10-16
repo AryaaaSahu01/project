@@ -8,7 +8,7 @@ import (
 )
 
 func TestDeleteConversationWithDescendants(t *testing.T) {
-	threads, capsules, now, rootID := newFixture()
+	threads, capsules, now, rootID := newFixture(t)
 
 	*now = now.Add(2 * time.Hour)
 
@@ -116,6 +116,52 @@ func TestDeleteConversationWithDescendants(t *testing.T) {
 	if _, err := capsules.GetMetadata(
 		"user-1", unrelated.ID,
 	); err != nil {
-		t.Fatalf("unrelated capsule was deleted:", err)
+		t.Fatal("unrelated capsule was deleted:", err)
+	}
+}
+
+func TestDeleteConversationRejectsNonRootAndOtherUser(t *testing.T) {
+	threads, capsules, now, rootID := newFixture(t)
+
+	*now = now.Add(2 * time.Hour)
+
+	if _, err := capsules.Open("user-1", rootID); err != nil {
+		t.Fatal(err)
+	}
+
+	reflection, err := threads.Create(
+		"user-1",
+		rootID,
+		CreateReflectionInput{Body: "Preserve this writing"},
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	child, err := threads.SealReflection(
+		"user-1",
+		rootID,
+		reflection.ID,
+		now.Add(24*time.Hour),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = threads.Deleteconversation("user-2", rootID)
+	if !errors.Is(err, capsule.ErrCapsuleNotFound) {
+		t.Fatalf("expected ownership rejection, got %v", err)
+	}
+
+	err = threads.Deleteconversation("user-1", child.ID)
+	if !errors.Is(err, capsule.ErrCapsuleNotRoot) {
+		t.Fatalf("expected non-root rejection, got %v", err)
+	}
+
+	for _, id := range []string{rootID, child.ID} {
+		if _, err := capsules.GetMetadata("user-1", id); err != nil {
+			t.Fatalf("rejected deletion changed capsule %s: %v", id, err)
+		}
 	}
 }
