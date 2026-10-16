@@ -86,7 +86,7 @@ func TestDeleteConversationWithDescendants(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := threads.Deleteconversation("user-1", rootID); err != nil {
+	if err := threads.DeleteConversation("user-1", rootID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -149,12 +149,12 @@ func TestDeleteConversationRejectsNonRootAndOtherUser(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = threads.Deleteconversation("user-2", rootID)
+	err = threads.DeleteConversation("user-2", rootID)
 	if !errors.Is(err, capsule.ErrCapsuleNotFound) {
 		t.Fatalf("expected ownership rejection, got %v", err)
 	}
 
-	err = threads.Deleteconversation("user-1", child.ID)
+	err = threads.DeleteConversation("user-1", child.ID)
 	if !errors.Is(err, capsule.ErrCapsuleNotRoot) {
 		t.Fatalf("expected non-root rejection, got %v", err)
 	}

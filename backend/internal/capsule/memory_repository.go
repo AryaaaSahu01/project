@@ -153,12 +153,16 @@ func (r *MemoryRepository) DeleteTree(
 		id := queue[0]
 		queue = queue[1:]
 
-		if _, duplicate := visited[id]; duplicate {
+		if _, seen := visited[id]; seen {
 			return ErrCapsuleTreeChanged
 		}
 
 		c, exists := r.capsules[id]
 		if !exists || c.UserID != userID {
+			return ErrCapsuleTreeChanged
+		}
+
+		if _, allowed := expected[id]; !allowed {
 			return ErrCapsuleTreeChanged
 		}
 

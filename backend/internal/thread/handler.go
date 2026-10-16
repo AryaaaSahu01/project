@@ -38,6 +38,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		"GET /api/v1/capsules/{id}/history",
 		h.getHistory,
 	)
+
+	mux.HandleFunc(
+		"DELETE /api/v1/capsules/{id}/history",
+		h.deleteConversation,
+	)
 }
 
 func (h *Handler) createReflection(
@@ -246,5 +251,94 @@ func (h *Handler) getHistory(
 		)
 	default:
 		writeJSON(w, http.StatusOK, history)
+	}
+}
+
+const DeleteConversationConfirmation = "DELETE CONVERSATION"
+
+type DeleteConversationRequest struct {
+	Confirmation string `json:"confirmation"`
+}
+
+func (h *Handler) deleteConversation(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	var input DeleteConversationRequest
+
+	status, err := httpapi.DecodeJSON(
+		w,
+		r,
+		&input,
+		httpapi.MaxSealBytes,
+	)
+
+	if err != nil {
+		writeJSON(w, status, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if input.Confirmation != DeleteConversationConfirmation {
+		writeJSON(
+			w,
+			http.StatusBadRequest,
+			map[string]string{
+				"error": "confirmation must equal DELETE CONVERSATION",
+			},
+		)
+		return
+	}
+
+	userID := "local-user"
+	rootID := r.PathValue("id")
+
+	err = h.service.DeleteConversation(userID, rootID)
+
+	switch {
+	case errors.Is(err, capsule.ErrCapsuleNotFound):
+		writeJSON(
+			w,
+			http.StatusNotFound,
+			map[string]string{"error": "capsule not found"},
+		)
+
+	case errors.Is(err, capsule.ErrCapsuleNotRoot):
+		writeJSON(
+			w,
+			http.StatusConflict,
+			map[string]string{
+				"error": "only a root capsule can be deleted as a conversation",
+			},
+		)
+
+	case errors.Is(err, ErrHistoryInconsistent),
+		errors.Is(err, capsule.ErrCapsuleTreeChanged):
+		writeJSON(
+			w,
+			http.StatusConflict,
+			map[string]string{
+				"error": "conversation integrity conflict; nothing deleted",
+			},
+		)
+	case errors.Is(err, ErrHistoryTooLarge):
+		writeJSON(
+			w,
+			http.StatusUnprocessableEntity,
+			map[string]string{
+				"error": "conversation exceeds deletion limit",
+			},
+		)
+	case err != nil:
+		writeJSON(
+			w,
+			http.StatusInternalServerError,
+			map[string]string{
+				"error": "internal server error",
+			},
+		)
+	default:
+		w.WriteHeader(http.StatusNoContent)
 	}
 }

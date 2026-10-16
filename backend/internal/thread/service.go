@@ -272,7 +272,7 @@ func (s *Service) DeleteCapsule(
 	return nil
 }
 
-func (s *Service) Deleteconversation(
+func (s *Service) DeleteConversation(
 	userID string,
 	rootID string,
 ) error {
