@@ -1142,3 +1142,186 @@ func TestResealReflectionHTTPNotFound(t *testing.T) {
 		})
 	}
 }
+
+type historyHTTPNode struct {
+	Capsule struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	} `json:"capsule"`
+
+	Reflections []struct {
+		ID     string           `json:"id"`
+		Status string           `json:"status"`
+		Body   string           `json:"body"`
+		Child  *historyHTTPNode `json:"child"`
+	} `json:"reflections"`
+}
+
+func TestHistoryHTTPFlow(t *testing.T) {
+	current := time.Date(
+		2026, 10, 16, 0, 0, 0, 0, time.UTC,
+	)
+
+	router := newMux(func() time.Time {
+		return current
+	})
+
+	res := performRequest(
+		router,
+		"POST",
+		"/api/v1/entries",
+		`{"title":"Past me","body":"Original private memory"}`,
+	)
+	requireStatus(t, res, http.StatusCreated)
+	entryID := requireID(t, res)
+
+	sealBody := `{"unlock_at":"` +
+		current.Add(time.Hour).Format(time.RFC3339Nano) + `"}`
+
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/entries/"+entryID+"/seal",
+		sealBody,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+	parentID := requireID(t, res)
+
+	historyPath := "/api/v1/capsules/" + parentID + "/history"
+
+	res = performRequest(router, "GET", historyPath, "")
+
+	requireStatus(t, res, http.StatusOK)
+
+	var locked historyHTTPNode
+	if err := json.Unmarshal(res.Body.Bytes(), &locked); err != nil {
+		t.Fatal(err)
+	}
+
+	if locked.Capsule.Status != "sealed" ||
+		locked.Capsule.ID != parentID ||
+		len(locked.Reflections) != 0 {
+		t.Fatal("locked history returned unexpected data")
+	}
+
+	if strings.Contains(res.Body.String(), "Original private memory") {
+		t.Fatal("locked capsule content leaked")
+	}
+
+	current = current.Add(2 * time.Hour)
+
+	res = performRequest(router, "GET", historyPath, "")
+	requireStatus(t, res, http.StatusOK)
+
+	if strings.Contains(res.Body.String(), `"status":"returned"`) {
+		t.Fatal("history GET unexpectedly opened a capsule")
+	}
+
+	res = performRequest(
+		router,
+		"POST",
+		"/api/v1/capsules/"+parentID+"/open",
+		"",
+	)
+
+	requireStatus(t, res, http.StatusOK)
+
+	reflectionPath := "/api/v1/capsules/" + parentID + "/reflections"
+
+	res = performRequest(
+		router,
+		"POST",
+		reflectionPath,
+		`{"body":"Visible draft"}`,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+	draftID := requireID(t, res)
+
+	current = current.Add(time.Minute)
+
+	res = performRequest(
+		router,
+		"POST",
+		reflectionPath,
+		`{"body":"Private sealed reflection"}`,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+	reflectionID := requireID(t, res)
+
+	childSealBody := `{"unlock_at":"` +
+		current.Add(24*time.Hour).Format(time.RFC3339Nano) + `"}`
+
+	res = performRequest(
+		router,
+		"POST",
+		reflectionPath+"/"+reflectionID+"/seal",
+		childSealBody,
+	)
+
+	requireStatus(t, res, http.StatusCreated)
+	childID := requireID(t, res)
+
+	res = performRequest(router, "GET", historyPath, "")
+	requireStatus(t, res, http.StatusOK)
+
+	var history historyHTTPNode
+	if err := json.Unmarshal(res.Body.Bytes(), &history); err != nil {
+		t.Fatal(err)
+	}
+
+	if history.Capsule.Status != "returned" ||
+		len(history.Reflections) != 2 {
+		t.Fatal("incorrect history repsonse")
+	}
+
+	if history.Reflections[0].ID != draftID ||
+		history.Reflections[0].Body != "Visible draft" {
+		t.Fatal("draft reflection is missing")
+	}
+
+	sealed := history.Reflections[1]
+
+	if sealed.Status != "sealed" ||
+		sealed.Body != "" ||
+		sealed.Child == nil ||
+		sealed.Child.Capsule.ID != childID ||
+		sealed.Child.Capsule.Status != "sealed" ||
+		len(sealed.Child.Reflections) != 0 {
+		t.Fatal("child capsule history is incorret")
+	}
+
+	for _, secret := range []string{
+		"Original private memory",
+		"Private sealed reflection",
+	} {
+		if strings.Contains(res.Body.String(), secret) {
+			t.Fatalf("private content leaked: %s", secret)
+		}
+	}
+}
+
+func TestHistoryHTTPMissingCapsule(t *testing.T) {
+	router := newMux(time.Now)
+
+	res := performRequest(
+		router,
+		"GET",
+		"/api/v1/capsules/missing/history",
+		"",
+	)
+
+	requireStatus(t, res, http.StatusNotFound)
+
+	if !strings.Contains(
+		res.Body.String(),
+		"capsule not found",
+	) {
+		t.Fatalf(
+			"expected application not-found response, got %s",
+			res.Body.String(),
+		)
+	}
+}

@@ -33,6 +33,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		"POST /api/v1/capsules/{id}/reflections/{reflectionID}/seal",
 		h.sealReflection,
 	)
+
+	mux.HandleFunc(
+		"GET /api/v1/capsules/{id}/history",
+		h.getHistory,
+	)
 }
 
 func (h *Handler) createReflection(
@@ -199,5 +204,47 @@ func (h *Handler) sealReflection(
 			})
 	default:
 		writeJSON(w, http.StatusCreated, child)
+	}
+}
+
+func (h *Handler) getHistory(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	userID := "local-user"
+	capsuleID := r.PathValue("id")
+
+	history, err := h.service.GetHistory(
+		userID,
+		capsuleID,
+	)
+
+	switch {
+	case errors.Is(err, capsule.ErrCapsuleNotFound):
+		writeJSON(
+			w,
+			http.StatusNotFound,
+			map[string]string{
+				"error": "capsule not found",
+			},
+		)
+	case errors.Is(err, ErrHistoryTooLarge):
+		writeJSON(
+			w,
+			http.StatusUnprocessableEntity,
+			map[string]string{
+				"error": "history retrieval limit exceeded",
+			},
+		)
+	case err != nil:
+		writeJSON(
+			w,
+			http.StatusInternalServerError,
+			map[string]string{
+				"error": "internal server error",
+			},
+		)
+	default:
+		writeJSON(w, http.StatusOK, history)
 	}
 }
