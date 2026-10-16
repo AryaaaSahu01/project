@@ -33,4 +33,9 @@ type Repository interface {
 		userID string,
 		capsuleID string,
 	) int
+
+	DeleteByCapsules(
+		userID string,
+		capsuleIDs []string,
+	) int
 }

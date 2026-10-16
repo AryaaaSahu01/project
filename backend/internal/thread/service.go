@@ -271,3 +271,75 @@ func (s *Service) DeleteCapsule(
 	)
 	return nil
 }
+
+func (s *Service) Deleteconversation(
+	userID string,
+	rootID string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	userID = strings.TrimSpace(userID)
+	rootID = strings.TrimSpace(rootID)
+
+	root, err := s.capsules.GetMetadata(userID, rootID)
+
+	if err != nil {
+		return err
+	}
+
+	if root.ParentCapsuleID != "" {
+		return capsule.ErrCapsuleNotRoot
+	}
+
+	if root.SourceReflectionID != "" {
+		return ErrHistoryInconsistent
+	}
+
+	visited := make(map[string]struct{})
+
+	_, err = s.buildHistory(userID, root, visited)
+
+	if err != nil {
+		return err
+	}
+
+	allCapsules, err := s.capsules.List(userID)
+
+	if err != nil {
+		return err
+	}
+
+	for _, c := range allCapsules {
+		if c.ID == rootID {
+			continue
+		}
+
+		if _, parentInTree := visited[c.ParentCapsuleID]; parentInTree {
+			if _, reached := visited[c.ID]; !reached {
+				return ErrHistoryInconsistent
+			}
+		}
+
+	}
+
+	ids := make([]string, 0, len(visited))
+
+	for id := range visited {
+		ids = append(ids, id)
+	}
+
+	sort.Strings(ids)
+
+	if err := s.capsules.DeleteTree(
+		userID,
+		rootID,
+		ids,
+	); err != nil {
+		return err
+	}
+
+	s.repository.DeleteByCapsules(userID, ids)
+
+	return nil
+}

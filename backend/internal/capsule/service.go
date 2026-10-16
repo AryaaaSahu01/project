@@ -233,3 +233,22 @@ func (s *Service) List(
 	return result, nil
 
 }
+
+func (s *Service) DeleteTree(
+	userID string,
+	rootID string,
+	expectedIDs []string,
+) error {
+	userID = strings.TrimSpace(userID)
+	rootID = strings.TrimSpace(rootID)
+
+	if userID == "" {
+		return ErrInvalidUser
+	}
+
+	return s.repository.DeleteTree(
+		userID,
+		rootID,
+		expectedIDs,
+	)
+}

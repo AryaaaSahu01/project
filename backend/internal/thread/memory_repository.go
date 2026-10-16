@@ -107,3 +107,34 @@ func (r *MemoryRepository) DeleteByCapsule(
 
 	return deleted
 }
+
+
+func (r *MemoryRepository)	DeleteByCapsules{
+	userID string,
+	capsuleIDs []string,
+} int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	targets := make(map[string]struct{}, len(capsuleIDs))
+
+	for _, id := range capsuleIDs {
+		targets[id] = struct{}{}
+	}
+
+	deleted := 0
+
+	for id, reflection := range r.reflections {
+		if reflection.UserID != userID {
+			continue
+		}
+
+		if _, exists := targets[reflection.CapsuleID]; !exists {
+			continue
+		}
+
+		delete(r.reflections, id)
+		deleted++
+	}
+	return deleted
+}
