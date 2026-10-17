@@ -62,7 +62,7 @@ func TestDeleteConversationHTTPFlow(t *testing.T) {
 		router,
 		"POST",
 		"/api/v1/entries/"+entryID+"/seal",
-		`{"unlock_at":"2099-01-01T00:00:00Z}`,
+		`{"unlock_at":"2099-01-01T00:00:00Z"}`,
 	)
 
 	requireStatus(t, res, http.StatusCreated)
@@ -98,7 +98,7 @@ func TestDeleteConversationHTTPFlow(t *testing.T) {
 	res = performRequest(
 		router,
 		"GET",
-		"/api/v1/capsules"+unrelatedID,
+		"/api/v1/capsules/"+unrelatedID,
 		"",
 	)
 
@@ -115,7 +115,7 @@ func TestDeleteConversationHTTPFlow(t *testing.T) {
 func TestDeleteConversationHTTPValidation(t *testing.T) {
 	router, rootID := newOpenendCapsuleRouter(t)
 
-	path := "/api/v1/capsules" + rootID + "/history"
+	path := "/api/v1/capsules/" + rootID + "/history"
 
 	tests := []struct {
 		name   string
@@ -140,7 +140,7 @@ func TestDeleteConversationHTTPValidation(t *testing.T) {
 		{
 			name: "unknown field",
 			body: `{"confirmation":"DELETE CONVERSATION",` +
-				`"unexpected":"true}`,
+				`"unexpected":true}`,
 			status: http.StatusBadRequest,
 		},
 		{
@@ -185,7 +185,7 @@ func TestDeleteConversationHTTPNonRoot(t *testing.T) {
 	res := performRequest(
 		router,
 		"DELETE",
-		"api/v1/capsules/"+childID+"/history",
+		"/api/v1/capsules/"+childID+"/history",
 		deleteConfirmationJSON,
 	)
 
