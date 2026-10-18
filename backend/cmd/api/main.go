@@ -11,6 +11,7 @@ import (
 
 	"journalapp/internal/capsule"
 	"journalapp/internal/journal"
+	"journalapp/internal/returnevent"
 	"journalapp/internal/sealing"
 	"journalapp/internal/thread"
 )
@@ -21,6 +22,13 @@ func newMux(clock func() time.Time) *http.ServeMux {
 
 	capsuleRepo := capsule.NewMemoryRepository()
 	capsuleService := capsule.NewService(capsuleRepo, clock)
+	returnEventRepo := returnevent.NewMemoryRepository()
+
+	returnEventProcessor := returnevent.NewProcessor(
+		capsuleService,
+		returnEventRepo,
+		clock,
+	)
 
 	threadRepo := thread.NewMemoryRepository()
 
@@ -42,6 +50,9 @@ func newMux(clock func() time.Time) *http.ServeMux {
 	)
 	sealingHandler := sealing.NewHandler(sealingService)
 	threadHandler := thread.NewHandler(threadService)
+	returnEventHandler := returnevent.NewHandler(
+		returnEventProcessor,
+	)
 
 	mux := http.NewServeMux()
 
@@ -57,6 +68,7 @@ func newMux(clock func() time.Time) *http.ServeMux {
 	capsuleHandler.RegisterRoutes(mux)
 	sealingHandler.RegisterRoutes(mux)
 	threadHandler.RegisterRoutes(mux)
+	returnEventHandler.RegisterRoutes(mux)
 
 	return mux
 }
