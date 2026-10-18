@@ -252,3 +252,24 @@ func (s *Service) DeleteTree(
 		expectedIDs,
 	)
 }
+
+func (s *Service) ListDue(
+	userID string,
+) ([]CapsuleMetadata, error) {
+	capsules, err := s.List(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	due := make([]CapsuleMetadata, 0)
+
+	for _, c := range capsules {
+		if c.Status != StatusSealed || !c.CanOpen {
+			continue
+		}
+
+		due = append(due, c)
+	}
+
+	return due, nil
+}
