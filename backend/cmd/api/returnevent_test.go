@@ -172,7 +172,7 @@ func TestReturnEventHTTPFlow(t *testing.T) {
 	res = performRequest(
 		router,
 		"POST",
-		"/api/v1/capsules"+firstID+"/open",
+		"/api/v1/capsules/"+firstID+"/open",
 		"",
 	)
 
@@ -209,7 +209,7 @@ func TestReturnEventHTTPFlow(t *testing.T) {
 	res = performRequest(
 		router,
 		"DELETE",
-		"/api/v1/capsules"+secondID,
+		"/api/v1/capsules/"+secondID,
 		"",
 	)
 
