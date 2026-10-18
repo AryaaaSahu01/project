@@ -93,6 +93,10 @@ func (p *Processor) ListEligible(
 			return nil, err
 		}
 
+		if metadata.Status != capsule.StatusSealed ||
+			!metadata.CanOpen {
+			continue
+		}
 		if !metadata.UnlockAt.Equal(event.UnlockAt) {
 			continue
 		}
