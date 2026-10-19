@@ -17,6 +17,13 @@ import (
 )
 
 func newMux(clock func() time.Time) *http.ServeMux {
+	return newMuxWithDevRoutes(clock, false)
+}
+
+func newMuxWithDevRoutes(
+	clock func() time.Time,
+	enableDevRoutes bool,
+) *http.ServeMux {
 	journalRepo := journal.NewMemoryRepository()
 	journalService := journal.NewService(journalRepo)
 
@@ -70,13 +77,21 @@ func newMux(clock func() time.Time) *http.ServeMux {
 	threadHandler.RegisterRoutes(mux)
 	returnEventHandler.RegisterRoutes(mux)
 
+	if enableDevRoutes {
+		returnEventHandler.RegisterDevRoutes(mux)
+	}
+
 	return mux
 }
 
 func main() {
 	server := &http.Server{
-		Addr:              "127.0.0.1:8080",
-		Handler:           newMux(time.Now),
+		Addr: "127.0.0.1:8080",
+		Handler: newMuxWithDevRoutes(
+			time.Now,
+			os.Getenv("JOURNAL_ENV") == "development" &&
+				os.Getenv("JOURNAL_ENABLE_DEV_PROCESSING") == "1",
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

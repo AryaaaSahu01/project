@@ -61,9 +61,9 @@ func TestReturnEventHTTPFlow(t *testing.T) {
 		2026, 10, 19, 0, 0, 0, 0, time.UTC,
 	)
 
-	router := newMux(func() time.Time {
+	router := newMuxWithDevRoutes(func() time.Time {
 		return current
-	})
+	}, true)
 
 	firstID := createReturnEventCapsule(
 		t, router,
@@ -230,7 +230,7 @@ func TestReturnEventHTTPFlow(t *testing.T) {
 }
 
 func TestReturnEventHTTPMethodRestrictions(t *testing.T) {
-	router := newMux(time.Now)
+	router := newMuxWithDevRoutes(time.Now, true)
 
 	res := performRequest(
 		router, "GET", processDuePath, "",
@@ -243,4 +243,20 @@ func TestReturnEventHTTPMethodRestrictions(t *testing.T) {
 	)
 
 	requireStatus(t, res, http.StatusMethodNotAllowed)
+}
+
+func TestReturnEventDevRouteDisabledByDefault(t *testing.T) {
+	router := newMux(time.Now)
+
+	res := performRequest(
+		router, "POST", processDuePath, "",
+	)
+
+	requireStatus(t, res, http.StatusNotFound)
+
+	res = performRequest(
+		router, "GET", eligibleEventsPath, "",
+	)
+
+	requireStatus(t, res, http.StatusOK)
 }

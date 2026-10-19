@@ -17,12 +17,14 @@ func NewHandler(processor *Processor) *Handler {
 	}
 }
 
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+func (h *Handler) RegisterDevRoutes(mux *http.ServeMux) {
 	mux.HandleFunc(
 		"POST /api/v1/dev/return-events/process-due",
 		h.processDue,
 	)
+}
 
+func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc(
 		"GET /api/v1/return-events/eligible",
 		h.listEligible,
