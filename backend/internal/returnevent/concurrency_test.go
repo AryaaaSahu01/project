@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestProcessDueConcurrenceStateChanges(t *testing.T) {
+func TestProcessDueConcurrentStateChanges(t *testing.T) {
 	for _, action := range []string{"open", "delete"} {
 		t.Run(action, func(t *testing.T) {
 			for attempt := 0; attempt < 50; attempt++ {
