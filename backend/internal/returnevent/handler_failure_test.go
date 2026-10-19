@@ -87,7 +87,7 @@ func requireSafeInternalError(
 	}
 }
 
-func TestEligibleHTTPReposiotryReadFailure(t *testing.T) {
+func TestEligibleHTTPRepositoryReadFailure(t *testing.T) {
 	now := time.Date(
 		2026, 10, 19, 0, 0, 0, 0, time.UTC,
 	)
