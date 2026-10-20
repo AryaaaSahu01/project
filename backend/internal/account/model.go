@@ -24,7 +24,7 @@ type Profile struct {
 	DisplayName string    `json:"display_name"`
 	Bio         string    `json:"bio"`
 	Timezone    string    `json:"timezone"`
-	UpdatedAt   time.Time `json:"update_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type Workspace struct {

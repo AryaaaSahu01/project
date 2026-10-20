@@ -1,4 +1,4 @@
-package accountapi
+package main
 
 import (
 	"context"
