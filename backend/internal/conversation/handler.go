@@ -42,7 +42,7 @@ func writeError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "memory must be returned or reflection already sealed"})
 	case errors.Is(err, ErrHistoryTooLarge):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "history retrieval limit exceeded"})
-	case errors.Is(err, ErrHistoryIncosistent):
+	case errors.Is(err, ErrHistoryInconsistent):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "conversation history inconsistent"})
 	default:
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
