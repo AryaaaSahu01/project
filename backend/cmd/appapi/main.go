@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"journalapp/internal/account"
+	"journalapp/internal/conversation"
 	"journalapp/internal/memory"
 	"journalapp/internal/platform/postgres"
 	"log"
@@ -25,42 +26,28 @@ func main() {
 		maxConns = value
 	}
 
-	connectCtx, cancel := context.WithTimeout(
-		context.Background(), 10*time.Second,
-	)
-
-	db, err := postgres.Open(
-		connectCtx,
-		os.Getenv("DATABASE_URL"),
-		int32(maxConns),
-	)
+	connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	db, err := postgres.Open(connectCtx, os.Getenv("DATABASE_URL"), int32(maxConns))
 	cancel()
-
 	if err != nil {
 		log.Fatal("PostgreSQL unavailable: ", err)
 	}
-
 	defer db.Close()
 
-	accountService, err := account.NewService(
-		account.NewPostgresStore(db),
-	)
-
+	accountService, err := account.NewService(account.NewPostgresStore(db))
 	if err != nil {
 		log.Fatal("unable to initialize account service: ", err)
 	}
 
 	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET /health", func(
-		w http.ResponseWriter, r *http.Request,
-	) {
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
 	account.NewHandler(accountService).RegisterRoutes(mux)
 	memory.NewHandler(db, accountService).RegisterRoutes(mux)
+	conversation.NewHandler(conversation.NewService(db), accountService).RegisterRoutes(mux)
 
 	server := &http.Server{
 		Addr:              "127.0.0.1:8080",
@@ -72,33 +59,20 @@ func main() {
 		MaxHeaderBytes:    32 << 10,
 	}
 
-	stopCtx, stop := signal.NotifyContext(
-		context.Background(), os.Interrupt,
-	)
-
+	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-
 	shutdownDone := make(chan struct{})
-
 	go func() {
 		<-stopCtx.Done()
-
-		shutdownCtx, cancel := context.WithTimeout(
-			context.Background(), 10*time.Second,
-		)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.Printf("shutdown error: %v", err)
 		}
-
 		close(shutdownDone)
 	}()
 
-	log.Printf(
-		"Unified Journal API listening at http://%s",
-		server.Addr,
-	)
+	log.Printf("Unified Journal API listening at http://%s", server.Addr)
 
 	err = server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
