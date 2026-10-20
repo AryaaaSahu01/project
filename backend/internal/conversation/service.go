@@ -20,7 +20,7 @@ var (
 	ErrConflict            = errors.New("invalid memory or reflection state")
 	ErrHistoryTooLarge     = errors.New("conversation history limit exceeded")
 	ErrHistoryInconsistent = errors.New("inconsistent conversation history")
-	uuidPattern            = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	uuidPattern            = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 )
 
 const (
