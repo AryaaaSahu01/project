@@ -109,7 +109,6 @@ func (s *Service) Create(ctx context.Context, userID, parentID string, in Create
         JOIN workspace_members wm ON wm.workspace_id = m.workspace_id
         WHERE m.id = $2::uuid AND m.status = 'returned'
           AND wm.user_id = $1::uuid AND wm.role IN ('owner','editor')
-		FOR SHARE OF W
         RETURNING id::text, workspace_id::text, memory_id::text,
           author_user_id::text, body, status, sealed_child_memory_id::text, created_at
     `
