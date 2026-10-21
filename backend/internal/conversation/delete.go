@@ -32,7 +32,7 @@ func (s *Service) Deleteconversation(ctx context.Context, userID, rootID string)
 	err = tx.QueryRow(ctx, `
 		SELECT w.id::text
 		FROM workspaces w
-		JOIN memories m ON m.workspace_id = wi.id
+		JOIN memories m ON m.workspace_id = w.id
 		JOIN workspace_members wm
 		  ON wm.workspace_id = w.id
 		WHERE m.id = $2::uuid
@@ -81,7 +81,7 @@ func (s *Service) Deleteconversation(ctx context.Context, userID, rootID string)
 		)
 		SELECT
 			(SELECT count(*) FROM reflections r
-			  WHERE r.workspace_id = $1 uuid
+			  WHERE r.workspace_id = $1::uuid
 				AND r.memory_id IN (SELECT id FROM ids)),
 			EXISTS (
 			  SELECT 1 FROM reflections r
@@ -136,7 +136,7 @@ func (s *Service) Deleteconversation(ctx context.Context, userID, rootID string)
 		DELETE FROM memories
 		WHERE workspace_id = $1::uuid
 		  AND id IN (
-		 	SELECT value::uuid FROM unnest($2::test[]) AS member(value) 
+		 	SELECT value::uuid FROM unnest($2::text[]) AS member(value) 
 		  )
 	`
 	memTag, err := tx.Exec(ctx, deleteMemories, workspaceID, ids)
