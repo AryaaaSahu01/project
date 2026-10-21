@@ -79,7 +79,7 @@ func (h *Handler) ack(w http.ResponseWriter, r *http.Request, userID string) {
 	switch {
 	case errors.Is(err, ErrInvalidID):
 		respond(w, http.StatusBadRequest, map[string]string{"error": "invalid event ID"})
-	case errors.Is(err, account.ErrNotFound):
+	case errors.Is(err, ErrNotFound):
 		respond(w, http.StatusNotFound, map[string]string{"error": "event not found or no longer eligible"})
 	case err != nil:
 		respond(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})

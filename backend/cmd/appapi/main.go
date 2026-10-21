@@ -5,6 +5,7 @@ import (
 	"errors"
 	"journalapp/internal/account"
 	"journalapp/internal/conversation"
+	"journalapp/internal/dueevent"
 	"journalapp/internal/memory"
 	"journalapp/internal/platform/postgres"
 	"log"
@@ -48,6 +49,7 @@ func main() {
 	account.NewHandler(accountService).RegisterRoutes(mux)
 	memory.NewHandler(db, accountService).RegisterRoutes(mux)
 	conversation.NewHandler(conversation.NewService(db), accountService).RegisterRoutes(mux)
+	dueevent.NewHandler(dueevent.NewService(db), accountService).RegisterRoutes(mux)
 
 	server := &http.Server{
 		Addr:              "127.0.0.1:8080",
