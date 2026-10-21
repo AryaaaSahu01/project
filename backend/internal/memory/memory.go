@@ -350,29 +350,49 @@ func (h *Handler) remove(
 	if !validID(id) {
 		return ErrInput
 	}
-
-	// Only draft memories are deletable in this checkpoint.
-	// Conversation-safe deletion comes with persistent reflections.
-	query := `
-		DELETE FROM memories AS m
-		WHERE m.id = $2::uuid
-			AND m.status = 'draft'
-			AND EXISTS (
-				SELECT 1 FROM workspace_members wm
-				WHERE wm.workspace_id = m.workspace_id
-					AND wm.user_id = $1::uuid
-					AND wm.role IN ('owner', 'editor')
-			)
-	`
-
-	tag, err := h.db.Exec(ctx, query, userID, id)
+	tx, err := h.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
+	defer tx.Rollback(ctx)
+	// Link creation locks both endpoint memories. This lock makes the link
+	// check and deletion atomic with respect to concurrent link creation.
+	var status string
+	err = tx.QueryRow(ctx, `
+		SELECT m.status FROM memories m
+		JOIN workspace_members wm ON wm.workspace_id=m.workspace_id
+		WHERE m.id=$2::uuid AND wm.user_id=$1::uuid
+		  AND wm.role IN ('owner','editor') FOR UPDATE OF m`,
+		userID, id).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
-	return nil
+	if err != nil {
+		return err
+	}
+	if status != "draft" {
+		return ErrNotFound
+	}
+	var attachedOrLinked bool
+	err = tx.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM memory_assets WHERE memory_id=$1::uuid)
+		    OR EXISTS(SELECT 1 FROM memory_links
+		      WHERE from_memory_id=$1::uuid OR to_memory_id=$1::uuid)`, id).
+		Scan(&attachedOrLinked)
+	if err != nil {
+		return err
+	}
+	if attachedOrLinked {
+		return ErrConflict
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM memories WHERE id=$1::uuid AND status='draft'`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrConflict
+	}
+	return tx.Commit(ctx)
 }
 
 func respond(w http.ResponseWriter, status int, value any) {

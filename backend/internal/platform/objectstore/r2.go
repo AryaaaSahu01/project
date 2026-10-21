@@ -59,9 +59,6 @@ func (s *R2) CheckBucket(ctx context.Context) error {
 	return err
 }
 
-// PresignUpload is an INTERNAL helper. The future HTTP handler MUST authenticate,
-// authorize workspace access, reserve quotas and generate an unpredictable key first.
-// The Content-Type is signed but does not prove the actual bytes or enforce size.
 func (s *R2) PresignUpload(ctx context.Context, key, contentType string) (string, http.Header, error) {
 	if err := validObjectKey(key); err != nil {
 		return "", nil, err
