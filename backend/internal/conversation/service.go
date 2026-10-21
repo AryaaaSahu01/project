@@ -89,14 +89,13 @@ func scanReflection(row scanner) (Reflection, error) {
 	if err != nil {
 		return Reflection{}, err
 	}
-	// Sealed reflection text lives only inside the child memory.
+
 	if r.Status == "sealed" {
 		r.Body = ""
 	}
 	return r, nil
 }
 
-// A reflection can be created only on a returned memory and by an editor/owner.
 func (s *Service) Create(ctx context.Context, userID, parentID string, in CreateReflectionInput) (Reflection, error) {
 	body := strings.TrimSpace(in.Body)
 	if !validUUID(parentID) || body == "" || !utf8.ValidString(body) ||
@@ -108,6 +107,7 @@ func (s *Service) Create(ctx context.Context, userID, parentID string, in Create
         SELECT m.workspace_id, m.id, $1::uuid, $3::text
         FROM memories m
         JOIN workspace_members wm ON wm.workspace_id = m.workspace_id
+		FOR SHARE OF W
         WHERE m.id = $2::uuid AND m.status = 'returned'
           AND wm.user_id = $1::uuid AND wm.role IN ('owner','editor')
         RETURNING id::text, workspace_id::text, memory_id::text,
@@ -120,7 +120,6 @@ func (s *Service) Create(ctx context.Context, userID, parentID string, in Create
 	return r, err
 }
 
-// list returns ErrNotFound for inaccessible memory IDs, without leaking their existence.
 func (s *Service) List(ctx context.Context, userID, parentID string) ([]Reflection, error) {
 	if !validUUID(parentID) {
 		return nil, ErrInvalid
@@ -168,8 +167,6 @@ func (s *Service) List(ctx context.Context, userID, parentID string) ([]Reflecti
 	return items, rows.Err()
 }
 
-// Seal is atomic: child creation and reflection status update commit together.
-// Row-locking the reflection serializes two concurrent seal attempts.
 func (s *Service) Seal(ctx context.Context, userID, parentID, reflectionID string, unlockAt time.Time) (ChildMetadata, error) {
 	if !validUUID(parentID) || !validUUID(reflectionID) ||
 		!unlockAt.After(time.Now().UTC().Add(time.Minute)) {
@@ -182,8 +179,6 @@ func (s *Service) Seal(ctx context.Context, userID, parentID, reflectionID strin
 	}
 	defer tx.Rollback(ctx)
 
-	// Lock workspace first to coordinate future conversation-tree deletion.
-	// Authorization is checked in the same statement.
 	var workspaceID string
 	err = tx.QueryRow(ctx, `
         SELECT w.id::text FROM workspaces w
@@ -271,7 +266,6 @@ func scanMemory(row scanner) (memory.Memory, error) {
 	return m, nil
 }
 
-// History builds a consistent, read-only snapshot with cycle and size guards.
 func (s *Service) History(ctx context.Context, userID, id string) (HistoryNode, error) {
 	if !validUUID(id) {
 		return HistoryNode{}, ErrInvalid
@@ -334,7 +328,7 @@ func (s *Service) walk(ctx context.Context, tx pgx.Tx, state *historyState, user
 	if err != nil {
 		return HistoryNode{}, err
 	}
-	// pgx cannot run nested queries while a result set remains open.
+
 	refs := make([]Reflection, 0)
 	for rows.Next() {
 		ref, scanErr := scanReflection(rows)

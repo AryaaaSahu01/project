@@ -94,6 +94,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/memories/{id}/reflections", h.secure(h.list))
 	mux.HandleFunc("POST /api/v1/memories/{id}/reflections/{reflectionID}/seal", h.secure(h.seal))
 	mux.HandleFunc("GET /api/v1/memories/{id}/history", h.secure(h.history))
+	mux.HandleFunc("DELETE /api/v1/memories/{id}/history", h.secure(h.deleteConversation))
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request, userID string) {
