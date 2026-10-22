@@ -79,8 +79,6 @@ func (s *R2) PresignUpload(ctx context.Context, key, contentType string) (string
 	return result.URL, result.SignedHeader, nil
 }
 
-// PresignDownload MUST be called only AFTER application authorization and
-// after validating any sealed memory has reached its unlock time.
 func (s *R2) PresignDownload(ctx context.Context, key string) (string, error) {
 	if err := validObjectKey(key); err != nil {
 		return "", err

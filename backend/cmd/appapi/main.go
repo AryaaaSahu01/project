@@ -11,6 +11,7 @@ import (
 	"journalapp/internal/memorylink"
 	"journalapp/internal/platform/objectstore"
 	"journalapp/internal/platform/postgres"
+	"journalapp/internal/sharedworkspace"
 	"log"
 	"net/http"
 	"os"
@@ -54,6 +55,7 @@ func main() {
 	conversation.NewHandler(conversation.NewService(db), accountService).RegisterRoutes(mux)
 	dueevent.NewHandler(dueevent.NewService(db), accountService).RegisterRoutes(mux)
 	memorylink.NewHandler(memorylink.NewService(db), accountService).RegisterRoutes(mux)
+	sharedworkspace.NewHandler(sharedworkspace.NewService(db), accountService).RegisterRoutes(mux)
 
 	// R2 is optional in local development. If configured, require all four values.
 	fields := []string{"R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"}
