@@ -1,0 +1,107 @@
+@import './breakpoints.css';
+
+/* Page additions. Existing palette, fonts, sizing, and breakpoints stay shared. */
+button, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+button, input, textarea, select { accent-color: var(--teal); }
+input, textarea { caret-color: var(--leather); }
+html { scrollbar-color: var(--muted) var(--parchment); }
+a { text-underline-offset: 0.2em; }
+.workspace:focus { outline: none; }
+.navigation a:first-child { color: var(--muted); font-weight: 400; }
+.navigation a.active { color: var(--leather); background: var(--parchment); font-weight: 700; }
+.navigation a:hover { color: var(--leather); }
+.write-action { border: 1px solid transparent; }
+.page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-bottom: 40px; }
+.page-heading h1 { font-size: clamp(2.8rem, 4.4vw, 4.4rem); text-wrap: balance; }
+.page-heading p { max-width: 48ch; margin-top: 20px; color: var(--muted); font-size: 0.9375rem; line-height: 1.8; }
+.page-heading .write-action { flex-shrink: 0; }
+.text-link { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; color: var(--leather); font-size: 0.875rem; text-decoration: underline; }
+.text-link:hover { color: var(--ink); }
+.browse-link { margin-top: 12px; }
+.capsule-link { margin-top: 18px; color: var(--cream); }
+.capsule-link:hover { color: var(--cream); text-decoration-thickness: 2px; }
+.draft-reminder { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 24px; padding: 12px 20px; margin-bottom: 32px; background: var(--linen); border-radius: 4px; }
+.draft-reminder p { color: var(--muted); font-size: 0.875rem; line-height: 1.6; }
+.memory-list { list-style: none; margin: 0; padding: 0; border-bottom: 1px solid var(--line); }
+.memory-row { display: grid; grid-template-columns: 38px minmax(0, 1fr) 20px; gap: 18px; padding: 28px 4px; }
+.memory-row:hover .memory-title { color: var(--leather); text-decoration: underline; text-underline-offset: 4px; }
+.row-arrow { align-self: center; color: var(--muted); }
+.library-tools { display: flex; gap: 24px; align-items: end; padding: 24px 0; border-top: 1px solid var(--line); }
+.field { display: grid; gap: 10px; }
+.field label, .editor-paper label { font-size: 0.8125rem; font-weight: 600; }
+.search-field { flex: 1; }
+.field input, .field select { min-height: var(--touch-target); max-width: 100%; width: 100%; border: 1px solid var(--muted); border-radius: 4px; background: var(--cream); color: var(--ink); padding: 12px 16px; font-size: 1rem; }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
+.results-note { margin: 8px 0 20px; font-size: 0.8125rem; color: var(--muted); line-height: 1.7; }
+.empty-state { padding: 56px 0; border-block: 1px solid var(--line); }
+.empty-state h2 { font-size: 2rem; }
+.empty-state p { margin: 16px 0 24px; color: var(--muted); line-height: 1.8; max-width: 58ch; }
+.secondary-button, .danger-button { display: inline-flex; align-items: center; justify-content: center; min-height: var(--touch-target); padding: 12px 20px; border: 1px solid var(--leather); border-radius: 4px; color: var(--leather); background: transparent; font-size: 0.875rem; font-weight: 600; }
+.secondary-button:hover { background: var(--linen); }
+.danger-button { color: var(--cream); background: var(--oxblood); border-color: var(--oxblood); }
+.danger-button:hover { background: var(--ink); }
+.page-note { margin-top: 28px; color: var(--muted); font-size: 0.8125rem; line-height: 1.8; max-width: 76ch; }
+.reading-page { max-width: 46rem; margin-inline: auto; }
+.reading-header { padding: 44px 0 32px; border-bottom: 1px solid var(--line); }
+.reading-header h1 { font-size: clamp(2.8rem, 4.5vw, 4.5rem); text-wrap: balance; }
+.reading-meta { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 24px; color: var(--muted); font-size: 0.8125rem; line-height: 1.7; }
+.reading-body { padding-top: 36px; font-family: var(--serif); font-size: clamp(1.375rem, 1.8vw, 1.625rem); line-height: 1.8; }
+.reading-body p + p { margin-top: 24px; }
+.reading-end { margin: 40px 0 24px; }
+.reading-end p { margin-top: 20px; font-size: 0.875rem; color: var(--muted); }
+.editor-page { max-width: 58rem; margin-inline: auto; }
+.editor-heading { align-items: center; }
+.editor-emblem { width: 44px; height: 44px; color: var(--leather); margin-right: 20px; }
+.editor-notice { display: flex; align-items: flex-start; gap: 12px; max-width: 76ch; color: var(--muted); font-size: 0.8125rem; line-height: 1.8; }
+.editor-notice svg { margin-top: 4px; color: var(--leather); }
+.editor-notice strong { color: var(--ink); }
+.editor-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 28px; padding-bottom: 16px; }
+.editor-mode { display: flex; gap: 4px; }
+.mode-button, .filter-button { min-height: var(--touch-target); padding: 12px 18px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--muted); font-size: 0.875rem; }
+.mode-button[aria-pressed='true'], .filter-button[aria-pressed='true'] { border-color: var(--teal); color: var(--teal); background: var(--cream); font-weight: 600; }
+.mode-button:hover, .filter-button:hover { background: var(--linen); }
+.word-count { font-size: 0.8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.editor-paper { padding: clamp(24px, 4vw, 48px); border: 1px solid var(--line); background: var(--cream); border-radius: 4px; }
+.editor-paper label { display: block; color: var(--muted); margin-bottom: 12px; }
+.draft-title { display: block; width: 100%; min-width: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 8px 0 20px; background: transparent; font-family: var(--serif); font-size: clamp(1.75rem, 3vw, 2.5rem); color: var(--ink); }
+.field-hint { display: block; margin: 8px 0 28px; color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.field-hint:last-child { margin-bottom: 0; }
+.draft-body { display: block; width: 100%; min-height: 340px; resize: vertical; border: 0; border-radius: 0; padding: 8px 0; font-family: var(--serif); font-size: 1.375rem; line-height: 1.8; color: var(--ink); background: transparent; }
+.preview-paper { min-height: 480px; }
+.preview-paper h2 { font-size: 2.5rem; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.preview-body { white-space: pre-wrap; font-family: var(--serif); font-size: 1.375rem; line-height: 1.8; padding-top: 28px; }
+.preview-empty { color: var(--muted); margin-top: 28px; line-height: 1.8; }
+.editor-actions { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-top: 24px; }
+.text-button { min-height: var(--touch-target); padding: 12px; background: none; color: var(--oxblood); border: 0; text-decoration: underline; text-underline-offset: 4px; font-size: 0.875rem; }
+.text-button:hover { color: var(--ink); }
+.clear-confirmation { margin-top: 20px; padding: 24px; border: 1px solid var(--oxblood); border-radius: 4px; }
+.clear-confirmation p { max-width: 62ch; line-height: 1.7; }
+.confirmation-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.editor-status { margin-top: 16px; color: var(--teal); font-size: 0.875rem; line-height: 1.7; }
+.editor-status:empty { margin: 0; }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 20px; border-block: 1px solid var(--line); }
+.capsule-on-page { margin-top: 20px; }
+.sealed-note { margin-top: 16px; font-size: 0.875rem; line-height: 1.7; }
+.capsule-explainer { max-width: 48ch; margin-top: 48px; }
+.capsule-explainer h2 { margin-top: 24px; }
+.capsule-explainer p { margin-top: 16px; color: var(--muted); font-size: 0.9375rem; line-height: 1.8; }
+.not-found { border-top: 0; }
+
+@media (--compact-desktop) {
+  .page-heading { align-items: flex-start; flex-direction: column; }
+  .editor-heading { flex-direction: row; }
+}
+@media (--phone) {
+  .page-heading { padding-bottom: 28px; }
+  .page-heading h1 { font-size: 2.8rem; }
+  .library-tools { flex-direction: column; align-items: stretch; gap: 16px; }
+  .memory-row { gap: 12px; }
+  .reading-header { padding-top: 28px; }
+  .editor-emblem { display: none; }
+  .editor-paper { padding: 24px 20px; }
+  .draft-body { min-height: 300px; }
+  .filter-button { padding-inline: 12px; }
+  .draft-reminder { padding: 16px; }
+}
