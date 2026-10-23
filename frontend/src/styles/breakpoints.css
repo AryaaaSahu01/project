@@ -1,0 +1,7 @@
+/* Shared layout thresholds. PostCSS converts these aliases to normal CSS.
+   Media-query rem units use the browser's initial font size (usually 16px).
+   These are layout decisions, not device detection. */
+@custom-media --phone (max-width: 37.5rem); /* 600px at the default font size */
+@custom-media --tablet (max-width: 53.125rem); /* 850px */
+@custom-media --compact-desktop (max-width: 71.875rem); /* 1150px */
+@custom-media --wide-desktop (min-width: 93.75rem); /* 1500px */

@@ -9,6 +9,7 @@ function Icon({ name, ...props }) {
     lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3" /></>,
     arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
     plus: <path d="M12 5v14M5 12h14" />,
+    quote: <><path d="M10 5H4v7h4c0 3-1 5-4 7M20 5h-6v7h4c0 3-1 5-4 7" /></>,
   }
 
   return (
@@ -43,10 +44,10 @@ export default function App() {
       <div className="journal-app">
         <aside className="sidebar" aria-label="Journal navigation">
           <a className="brand" href="#today">
-            <Icon name="book" />
             <span>{APP_CONFIG.name}</span>
           </a>
-          <p className="brand-note">Life, in your own words.</p>
+          <p className="brand-note">{APP_CONFIG.tagline}</p>
+          <p className="mobile-privacy"><Icon name="lock" />{APP_CONFIG.privacyTagline}</p>
 
           <nav className="navigation" aria-label="On this page">
             <a href="#today"><Icon name="sun" />Today</a>
@@ -55,9 +56,15 @@ export default function App() {
           </nav>
 
           <div className="sidebar-note">
-            <span className="brass-rule" />
-            <p>For the days you’ll want to remember.</p>
-            <span>A little space. Entirely yours.</span>
+            <Icon name="quote" className="quote-mark" />
+            <blockquote>{APP_CONFIG.sidebarQuote}</blockquote>
+            <div className="privacy-note">
+              <Icon name="lock" />
+              <div>
+                <p>{APP_CONFIG.privacyTagline}</p>
+                <span>{APP_CONFIG.privacyDetail}</span>
+              </div>
+            </div>
           </div>
         </aside>
 
@@ -69,8 +76,8 @@ export default function App() {
 
           <div className="page-content">
             <section className="welcome" aria-labelledby="welcome-title">
-              <h1 id="welcome-title">A moment,<br /><em>just for you.</em></h1>
-              <p>You don’t need a remarkable day to have something worth keeping.</p>
+              <h1 id="welcome-title">{APP_CONFIG.welcomeTitle}<br /><em>{APP_CONFIG.welcomeEmphasis}</em></h1>
+              <p>{APP_CONFIG.welcomeDescription}</p>
             </section>
 
             <details className="composer">
