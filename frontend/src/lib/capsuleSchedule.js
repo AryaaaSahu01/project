@@ -66,7 +66,7 @@ export function formatSchedule(schedule) {
         hour: 'numeric',
         minute: '2-digit',
         timeZoneName: 'short',
-        ...arguments(schedule.timeZone !== 'Device local time'
+        ...(schedule.timeZone !== 'Device local time'
             ? { timeZone: schedule.timeZone }
             : {}),
     }).format(new Date(schedule.scheduleAt))
