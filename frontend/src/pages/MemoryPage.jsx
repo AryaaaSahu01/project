@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {Link, useParam, useParams} from 'react-router'
+import {Link, useParams} from 'react-router'
 import {downloadText} from '../lib/download.js'
 import NotFoundPage from './NotFoundPage.jsx'
 
@@ -13,8 +13,8 @@ export default function MemoryPage({ memories }) {
   function exportMemory() {
     setNotice(
       downloadText(
-        'memory.txt'
-        `${memory.title}\n\n${memory.body}\n`
+        'memory.txt',
+        `${memory.title}\n\n${memory.body}\n`,
       )
         ? 'Download requested. Check your downloads for memory.txt.'
         : 'The download could not start. Select and copy your writing before this tab.',

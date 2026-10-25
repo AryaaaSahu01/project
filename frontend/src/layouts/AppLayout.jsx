@@ -14,12 +14,12 @@ function pageName(pathname) {
   return 'Page not found'
 }
 
-export default function AppLayout({ hasDraft }) {
+export default function AppLayout({ hasDraft, memories }) {
   const { pathname } = useLocation()
   const mainRef = useRef(null)
   const title = pageName(pathname)
 
-  const memory = sampleMemories.find((entry) => pathname === `/memories/${entry.id}`)
+  const memory = memories.find((entry) => pathname === `/memories/${entry.id}`)
  
   
 
@@ -30,7 +30,7 @@ export default function AppLayout({ hasDraft }) {
 
   return (
     <>
-      <title>{`${APP_CONFIG.name} - ${memory.title || title}`}</title>
+      <title>{`${APP_CONFIG.name} - ${memory?.title || title}`}</title>
       <meta name="description" content={APP_CONFIG.description} />
 
       <a className='skip-link' href="#main-content">
@@ -59,7 +59,7 @@ export default function AppLayout({ hasDraft }) {
               <Icon name="book"/>
                 Memories
             </NavLink>
-            <NavLink>
+            <NavLink to="/capsules">
               <Icon name="clock"/>
                 Time capsules
             </NavLink>
@@ -89,7 +89,7 @@ export default function AppLayout({ hasDraft }) {
           <header className='workspace-header'>
             <span>
               Your journal
-              <span className='breadcrumb-slash'></span>
+              <span className='breadcrumb-slash'>/</span>
                 {title}
             </span>
             <span className='session-label'>In this tab</span>

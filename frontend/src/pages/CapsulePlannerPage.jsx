@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Link, useNavigate } from 'react-router'
-import Icon from '.../components/Icon.jsx'
+import Icon from '../components/Icon.jsx'
 import {
     formatSchedule,
     validateSchedule,
@@ -14,7 +14,7 @@ export default function CapsulePlannerPage({
 }) {
     const navigate = useNavigate()
     const [review, setReview] = useState(null)
-    const [error, setError] = userState(null)
+    const [error, setError] = useState(null)
 
     const memoryRef = useRef(null)
     const timeRef = useRef(null)
@@ -33,7 +33,7 @@ export default function CapsulePlannerPage({
         setError(result)
         setReview(null)
 
-        window.resquestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
             const field = result.field === 'memoryId' ? memoryRef : timeRef
             field.current?.focus() 
         })
@@ -76,7 +76,7 @@ export default function CapsulePlannerPage({
         }
 
         if (onKeep(result.schedule)) {
-            naviagate('/capsule')
+            navigate('/capsule')
         } else {
             reportError ({
                 field: 'memoryId',
@@ -116,7 +116,7 @@ export default function CapsulePlannerPage({
     }
 
     return (
-        <section className="palanner-page" aria-labelledby="planner-heading">
+        <section className="planner-page" aria-labelledby="planner-heading">
             <Link className="text-link" to="/capsules">
                 Back to time capsules
             </Link>

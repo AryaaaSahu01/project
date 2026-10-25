@@ -24,7 +24,7 @@ export default function TodayPage({ hasDraft, memories, plans }) {
         </Link>
       </div>
 
-      <div>
+      <div className='journal-grid'>
         <section aria-labelledby="recent-title">
           <div className="section-heading">
             <h2 id="recent-title">Pages from your life</h2>
@@ -75,7 +75,7 @@ export default function TodayPage({ hasDraft, memories, plans }) {
             What's one ordinary thing you hope you never forget?
           </p>
 
-          <span className='brass-rules' />
+          <span className='brass-rule' />
 
           <p className='reflection-note'>
 

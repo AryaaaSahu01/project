@@ -59,7 +59,7 @@ export default function MemoriesPage({ hasDraft, memories }) {
           <div className='field'>
             <label htmlFor='memory-sort'>Order</label>
             <select 
-              id="memory-test"
+              id="memory-sort"
               value={sort}
               onChange={(event) =>
                 updateParam('sort', event.target.value)

@@ -50,7 +50,7 @@ export default function CapsulePage({plans}) {
       'Capsule plan',
       `Return date: ${formatSchedule(plan)}`,
       `Time zone: ${plan.timeZone}`,
-      `UTC : ${plan.scheduleAt}`,
+      `UTC : ${plan.scheduledAt}`,
       'Status: Planned, unsealed',
       '',
       'This plan does not include the memory text.',
@@ -96,7 +96,7 @@ export default function CapsulePage({plans}) {
         ))}
       </div>
 
-      <p className='results-note' roles='status'>
+      <p className='results-note' role='status'>
         {visible.length}{''}
         {filter === 'all' || filter === 'planned'
           ? 'capsule plans'
@@ -118,7 +118,7 @@ export default function CapsulePage({plans}) {
 
               <div className='capsule-date'>
                 Return on
-                <time dateTime='{plan.scheduledAt}'>
+                <time dateTime={plan.scheduledAt}>
                   {formatSchedule(plan)}
                 </time>
               </div>

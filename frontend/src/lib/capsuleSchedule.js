@@ -11,7 +11,7 @@ export function validateSchedule(
         }
     }
 
-    if (!/^\d{4}-\d{2}T\d{2}:\d{2}/.test(localDateTime)){
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(localDateTime)){
         return {
             field: 'localDateTime',
             error: 'Choose a date and time.',
@@ -48,7 +48,7 @@ export function validateSchedule(
         schedule: {
             memoryId,
             localDateTime,
-            scheduleAt: date.toISOString(),
+            scheduledAt: date.toISOString(),
             timeZone:
                 Intl.DateTimeFormat().resolvedOptions().timeZone ||
                 'Device local time',
@@ -69,7 +69,7 @@ export function formatSchedule(schedule) {
         ...(schedule.timeZone !== 'Device local time'
             ? { timeZone: schedule.timeZone }
             : {}),
-    }).format(new Date(schedule.scheduleAt))
+    }).format(new Date(schedule.scheduledAt))
 }
     
 

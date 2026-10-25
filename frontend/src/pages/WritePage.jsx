@@ -90,7 +90,7 @@ export default function WritePage({draft, onChange, onKeep}) {
           <button
             className="mode-button"
             aria-pressed={preview}
-            onClick={() => setPreview(ture)}
+            onClick={() => setPreview(true)}
           >
             Preview
           </button>
@@ -136,7 +136,7 @@ export default function WritePage({draft, onChange, onKeep}) {
           <label htmlFor="draft-body">Your words</label>
 
           <textarea
-            id="draft-body "
+            id="draft-body"
             className="draft-body"
             value={draft.body}
             onChange={(event)=>
@@ -148,7 +148,7 @@ export default function WritePage({draft, onChange, onKeep}) {
           />
 
           <span id="body-limit" className="field-hint">
-            {draft.body.length.toLocalString()}/50,000 characters
+            {draft.body.length.toLocaleString()}/50,000 characters
           </span>
         </div>
       )}
@@ -204,6 +204,10 @@ export default function WritePage({draft, onChange, onKeep}) {
           </div>
         </div>
       )}
+
+      <p className="editor-status" role="status">
+        {notice}
+      </p>
 
       <p className="page-note">
         Keeping a memory here lasts until refresh or tab closure.
