@@ -8,9 +8,8 @@ export default function TodayPage({ hasDraft, memories, plans }) {
   return (
     <div className='today-page'>
       <section className="welcome" aria-labelledby="welcome-title">
-        <h1 id="welcome-title">
-          {APP_CONFIG.welcomeTitle}
-          <br/>
+        <h1 id="welcome-title" className='welcome-heading'>
+          {APP_CONFIG.welcomeTitle}{''}
           <em>{APP_CONFIG.welcomeEmphasis}</em>
         </h1>
 
