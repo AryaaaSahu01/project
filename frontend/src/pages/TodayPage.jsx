@@ -6,7 +6,7 @@ import MemoryList from '../components/MemoryList.jsx'
 
 export default function TodayPage({ hasDraft, memories, plans }) {
   return (
-    <>
+    <div className='today-page'>
       <section className="welcome" aria-labelledby="welcome-title">
         <h1 id="welcome-title">
           {APP_CONFIG.welcomeTitle}
@@ -113,6 +113,6 @@ export default function TodayPage({ hasDraft, memories, plans }) {
           </Link>
         </div>
       </section>
-    </>
+    </div>
   )
 }

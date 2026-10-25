@@ -1,0 +1,122 @@
+@import './breakpoints.css';
+
+:root {
+    --font-brand: 'Cormorant Garamond', Georgia, serif;
+    --brand-size: 2.875rem;
+    --brand-size-mobile: 2.25rem;
+    --welcome-size: 2rem;
+    --welcome-size-mobile: 1.75rem;
+    --sidebar-width: 17.5rem;
+    --sidebar-compact-width: 16.5rem;
+}
+
+.brand.journal-brand {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 1.75rem;
+    align-items: center;
+    gap: 12px;
+    max-width: 100%;
+    min-height: var(--touch-target);
+    font-family: var(--font-brand);
+    font-size: var(--brand-size);
+    font-weight: 600;
+    line-height: 0.98;
+    letter-spacing: -0.025em;
+    color: var(--ink);
+}
+
+.journal-brand .brand-name {
+    min-width: 0;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+}
+
+.brand-pen {
+    width: 1.75rem;
+    height: 2.5rem;
+    color: var(--leather);
+}
+
+.journal-brand:hover .brand-name {
+    color: var(--leather);
+}
+
+.sidebar .brand-note {
+    margin-top: 16px;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+}
+
+.sidebar .navigation {
+    margin-top: 40px;
+}
+
+.today-page .welcome {
+    align-items: center;
+    gap: 32px
+}
+
+.today-page .welcome-heading {
+    max-width: 24ch;
+    font-size: var(--welcome-size);
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+}
+
+.today-page .welcome-heading em {
+    margin-inline-start: 0.12em;
+}
+
+.today-page .welcome > p {
+    max-width: 36ch;
+    padding-bottom: 0;
+    font-size: 1rem;
+    line-height: 1.7;
+}
+
+.today-page .composer {
+    margin-top: 24px;
+}
+
+.today-page .journal-grid {
+    margin-top: 44px;
+}
+
+@media (--compact-desktop) {
+    :root {
+        --sidebar-width: var(--sidebar-compact-width);
+    }
+
+    .today-page .welcome > p {
+        margin-top: 16px;
+    }
+}
+
+@media (--tablet) {
+    .brand.journal-brand {
+        display: flex;
+        width: fit-content;
+        font-size: var(--brand-size-mobile);
+        line-height: 1.1;
+    }
+
+    .brand-pen {
+        width: 1.5rem;
+        height: 2rem;
+    }
+
+    .sidebar .navigation {
+        margin-top: 18px;
+    }
+}
+
+@media (--phone) {
+    .today-page .welcome-heading {
+        font-size: var(--welcome-size-mobile);
+    }
+
+    .today-page .journal-grid {
+        margin-top: 36px;
+    }
+}

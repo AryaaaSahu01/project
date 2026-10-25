@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { APP_CONFIG } from '../config/app.js'
 import Icon from '../components/Icon.jsx'
+import Brand from '../components/Brand.jsx'
 
 
 function pageName(pathname) {
@@ -39,9 +40,7 @@ export default function AppLayout({ hasDraft, memories }) {
 
       <div className='journal-app'>
         <aside className='sidebar' aria-label='journal navigation'>
-          <Link className='brand' to="/today">
-            <span>{APP_CONFIG.name}</span>
-          </Link>
+          <Brand/>
 
           <p className='brand-note'>{APP_CONFIG.tagline}</p>
 
