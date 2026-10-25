@@ -67,7 +67,7 @@ summary::-webkit-details-marker { display: none; }
 .workspace { min-width: 0; }
 .workspace-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 86px; width: min(var(--content-max), calc(100% - var(--page-gutter) * 2)); margin-inline: auto; border-bottom: 1px solid var(--line); font-size: 0.75rem; }
 .breadcrumb-slash { margin-inline: 12px; color: var(--muted); }
-.demo-label { color: var(--teal); }
+
 .page-content { width: min(var(--content-max), calc(100% - var(--page-gutter) * 2)); margin-inline: auto; padding-top: var(--page-top); }
 .welcome { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; }
 h1 { font-family: var(--serif); font-size: clamp(3rem, 4.8vw, 4.75rem); font-weight: 400; line-height: 1.03; letter-spacing: -0.035em; }
