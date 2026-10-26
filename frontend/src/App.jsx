@@ -8,6 +8,10 @@ import WritePage from './pages/WritePage.jsx'
 import CapsulesPage from './pages/CapsulesPage.jsx'
 import CapsulePlannerPage from './pages/CapsulePlannerPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
+import AuthProvider from './components/AuthProvider.jsx'
+import AuthPage from './pages/AuthPage.jsx'
+import AccountPage from './pages/AccountPage.jsx'
+import './styles/account.css'
 import './styles/pages.css'
 
 export default function App() {
@@ -18,9 +22,7 @@ export default function App() {
     memoryId: '',
     localDateTime: '',
   })
-
   const hasDraft = Boolean(draft.title || draft.body)
-
   const hasWriting =
     hasDraft ||
     memories.length > 0 ||
@@ -34,13 +36,12 @@ export default function App() {
       event.preventDefault()
       event.returnValue = ''
     }
-
     window.addEventListener('beforeunload', warnBeforeLeaving)
-
     return () => {
       window.removeEventListener('beforeunload', warnBeforeLeaving)
     }
   }, [hasWriting])
+
 
   function keepMemory() {
     if (!draft.body.trim()) return null
@@ -79,6 +80,13 @@ export default function App() {
     setPlanDraft({ memoryId: '', localDateTime: ''})
 
     return true
+  }
+
+  function clearTabWriting() {
+    setDraft({title: '', body: ''})
+    setMemories([])
+    setPlans([])
+    setPlanDraft({ memoryId: '', localDateTime: ''})
   }
 
   return (
@@ -145,6 +153,11 @@ export default function App() {
               />
             }   
           />
+
+          <Route path="sign-in" element={<AuthPage key="login" mode="login" />}/>
+          <Route path="sign-up" element={<AuthPage key="register" mode="register" />} />
+          <Route path="account" element={<AccountPage hasWriting={hasWriting} onSignedOut={clearTabWriting}/>} />
+          
 
           <Route path="*" element={<NotFoundPage/>} />
         </Route>
