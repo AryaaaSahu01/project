@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { APP_CONFIG } from '../config/app.js'
 import Icon from '../components/Icon.jsx'
 import Brand from '../components/Brand.jsx'
-
+import { useAuth } from '../lib/auth.js'
 
 function pageName(pathname) {
   if (pathname === '/today') return 'Today'
@@ -12,6 +12,9 @@ function pageName(pathname) {
   if (/^\/memories\/[^/]+$/.test(pathname)) return 'Read a memory'
   if (pathname === '/capsules') return 'Time capsules'
   if (pathname === '/capsules/new') return 'Plan a capsule'
+  if (pathname === '/sign-in') return 'Sign in'
+  if (pathname === '/sign-up') return 'Create an account'
+  if (pathname === '/account') return 'Your account'
   return 'Page not found'
 }
 
@@ -19,10 +22,8 @@ export default function AppLayout({ hasDraft, memories }) {
   const { pathname } = useLocation()
   const mainRef = useRef(null)
   const title = pageName(pathname)
-
+  const { status } = useAuth()
   const memory = memories.find((entry) => pathname === `/memories/${entry.id}`)
- 
-  
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -33,94 +34,52 @@ export default function AppLayout({ hasDraft, memories }) {
     <>
       <title>{`${APP_CONFIG.name} - ${memory?.title || title}`}</title>
       <meta name="description" content={APP_CONFIG.description} />
-
-      <a className='skip-link' href="#main-content">
-        Skip to content
-      </a>
-
-      <div className='journal-app'>
-        <aside className='sidebar' aria-label='journal navigation'>
-          <Brand/>
-
-          <p className='brand-note'>{APP_CONFIG.tagline}</p>
-
-          <p className='mobile-privacy'>
-            <Icon name='lock'/>
-            {APP_CONFIG.privacyTagline}
-          </p>
-
-          <nav className='navigation' aria-label='Main navigation'>
-            <NavLink to="/today">
-              <Icon name="sun"/>
-                Today
-            </NavLink>
-            <NavLink to="/memories">
-              <Icon name="book"/>
-                Memories
-            </NavLink>
-            <NavLink to="/capsules">
-              <Icon name="clock"/>
-                Time capsules
-            </NavLink>
+      <a className="skip-link" href="#main-content">Skip to content</a>
+      <div className="journal-app">
+        <aside className="sidebar" aria-label="journal navigation">
+          <Brand />
+          <p className="brand-note">{APP_CONFIG.tagline}</p>
+          <p className="mobile-privacy"><Icon name="lock" />{APP_CONFIG.privacyTagline}</p>
+          <nav className="navigation" aria-label="Main navigation">
+            <NavLink to="/today"><Icon name="sun" />Today</NavLink>
+            <NavLink to="/memories"><Icon name="book" />Memories</NavLink>
+            <NavLink to="/capsules"><Icon name="clock" />Time capsules</NavLink>
           </nav>
-
-          <div className='sidebar-note'>
-            <Icon name="quote" className="quote-mark"/>
-
+          <div className="sidebar-note">
+            <Icon name="quote" className="quote-mark" />
             <blockquote>{APP_CONFIG.sidebarQuote}</blockquote>
-
-            <div className='privacy-note'>
-              <Icon name="lock"/>
-              <div>
-                <p>{APP_CONFIG.privacyTagline}</p>
-                <span>{APP_CONFIG.privacyDetail}</span>
-              </div>
+            <div className="privacy-note">
+              <Icon name="lock" />
+              <div><p>{APP_CONFIG.privacyTagline}</p><span>{APP_CONFIG.privacyDetail}</span></div>
             </div>
           </div>
         </aside>
-
-        <main
-          id="main-content"
-          className='workspace'
-          tabIndex={-1}
-          ref={mainRef}
-        >
-          <header className='workspace-header'>
-            <span>
-              Your journal
-              <span className='breadcrumb-slash'>/</span>
-                {title}
-            </span>
-            <span className='session-label'>In this tab</span>
+        <main id="main-content" className="workspace" tabIndex={-1} ref={mainRef}>
+          <header className="workspace-header">
+            <span>Your journal<span className="breadcrumb-slash">/</span>{title}</span>
+            <div className="workspace-account-actions">
+              <span className="session-label">Writing in this tab</span>
+              <Link className="account-entry" to={status === 'signed-in' ? '/account' : '/sign-in'}>
+                {status === 'signed-in' ? 'Your account' : 'Sign in'}
+              </Link>
+            </div>
           </header>
-
-
-          <div className='page-content'>
-            <p className='session-notice'>
+          <div className="page-content">
+            <p className="session-notice">
               Your writing and plans stay in this tab until you refresh
               or close it. Download your writing to keep a copy.
             </p>
-
             {hasDraft && pathname !== '/memories/new' && (
-              <div className='draft-reminder'>
+              <div className="draft-reminder">
                 <p>You have unfinished writing.</p>
-                <Link className='text-link' to="/memories/new">
-                  Continue writing
-                  <Icon name="arrow"/>
-                </Link>
+                <Link className="text-link" to="/memories/new">Continue writing<Icon name="arrow" /></Link>
               </div>
             )}
-
             <Outlet />
-
-            <footer className='workspace-footer'>
-              <span>{APP_CONFIG.name}</span>
-              <span>{APP_CONFIG.tagline}</span>
-            </footer>
+            <footer className="workspace-footer"><span>{APP_CONFIG.name}</span><span>{APP_CONFIG.tagline}</span></footer>
           </div>
         </main>
       </div>
     </>
   )
 }
- 
