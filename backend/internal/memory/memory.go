@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"journalapp/internal/account"
@@ -43,14 +44,16 @@ type Memory struct {
 }
 
 type CreateInput struct {
+	ID          string `json:"id,omitempty"`
 	WorkspaceID string `json:"workspace_id"`
 	Title       string `json:"title"`
 	Body        string `json:"body"`
 }
 
 type UpdateInput struct {
-	Title *string `json:"title,omitempty"`
-	Body  *string `json:"body,omitempty"`
+	Title             *string    `json:"title,omitempty"`
+	Body              *string    `json:"body,omitempty"`
+	ExpectedUpdatedAt *time.Time `json:"expected_updated_at,omitempty"`
 }
 
 type SealInput struct {
@@ -69,7 +72,8 @@ func NewHandler(db *pgxpool.Pool, accounts *account.Service) *Handler {
 const selectColumns = `
 	m.id::text, m.workspace_id::text, m.created_by::text,
 	m.title, m.body, m.status, m.sealed_at, m.unlock_at,
-	m.created_at, m.updated_at
+	m.created_at, m.updated_at,
+	(m.status = 'sealed' AND m.unlock_at <= now())
 `
 
 type scanner interface {
@@ -83,7 +87,7 @@ func scanMemory(row scanner) (Memory, error) {
 	err := row.Scan(
 		&m.ID, &m.WorkspaceID, &m.CreatedBy,
 		&title, &body, &m.Status, &m.SealedAt, &m.UnlockAt,
-		&m.CreatedAt, &m.UpdatedAt,
+		&m.CreatedAt, &m.UpdatedAt, &m.CanOpen,
 	)
 	if err != nil {
 		return Memory{}, err
@@ -94,10 +98,6 @@ func scanMemory(row scanner) (Memory, error) {
 		m.Title = &title
 		m.Body = &body
 	}
-
-	m.CanOpen = m.Status == "sealed" &&
-		m.UnlockAt != nil &&
-		!time.Now().UTC().Before(*m.UnlockAt)
 
 	return m, nil
 }
@@ -118,29 +118,32 @@ func validWriting(title, body string) bool {
 func (h *Handler) create(
 	ctx context.Context, userID string, in CreateInput,
 ) (Memory, error) {
-	if !validID(in.WorkspaceID) ||
+	if !validID(in.WorkspaceID) || (in.ID != "" && !validID(in.ID)) ||
 		!validWriting(in.Title, in.Body) {
 		return Memory{}, ErrInput
 	}
 
 	// Only workspace owners/editors may create memories.
 	const query = `
-		INSERT INTO memories
-			(workspace_id, created_by, title, body)
-		SELECT $1::uuid, $2::uuid, $3, $4
+		INSERT INTO memories AS m
+			(id, workspace_id, created_by, title, body)
+		SELECT COALESCE(NULLIF($5, '')::uuid, gen_random_uuid()), $1::uuid, $2::uuid, $3, $4
 		WHERE EXISTS (
 			SELECT 1 FROM workspace_members wm
 			WHERE wm.workspace_id = $1::uuid
 				AND wm.user_id = $2::uuid
 				AND wm.role IN ('owner', 'editor')
 		)
+		ON CONFLICT (id) DO UPDATE SET id = m.id
+		WHERE m.workspace_id = EXCLUDED.workspace_id AND m.created_by = EXCLUDED.created_by
+		  AND m.title = EXCLUDED.title AND m.body = EXCLUDED.body AND m.status = 'draft'
 		RETURNING id::text
 	`
 
 	var id string
 	err := h.db.QueryRow(
 		ctx, query, in.WorkspaceID, userID,
-		in.Title, in.Body,
+		in.Title, in.Body, in.ID,
 	).Scan(&id)
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -179,43 +182,6 @@ func (h *Handler) get(
 	return m, err
 }
 
-func (h *Handler) list(
-	ctx context.Context, userID, workspaceID string,
-) ([]Memory, error) {
-	if !validID(workspaceID) {
-		return nil, ErrInput
-	}
-
-	query := `
-		SELECT ` + selectColumns + `
-		FROM memories m
-		JOIN workspace_members wm
-			ON wm.workspace_id = m.workspace_id
-		WHERE m.workspace_id = $2::uuid
-			AND wm.user_id = $1::uuid
-		ORDER BY m.created_at DESC, m.id DESC
-		LIMIT 100
-	`
-
-	rows, err := h.db.Query(ctx, query, userID, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := make([]Memory, 0)
-
-	for rows.Next() {
-		m, err := scanMemory(rows)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, m)
-	}
-
-	return result, rows.Err()
-}
-
 func (h *Handler) update(
 	ctx context.Context, userID, id string, in UpdateInput,
 ) (Memory, error) {
@@ -241,6 +207,8 @@ func (h *Handler) update(
 			updated_at = now()
 		WHERE m.id = $2::uuid
 			AND m.status = 'draft'
+			AND ($5::timestamptz IS NULL OR m.updated_at = $5
+			  OR (m.title = COALESCE($3::text,m.title) AND m.body = COALESCE($4::text,m.body)))
 			AND (
 				btrim(COALESCE($3::text, m.title)) <> ''
 				OR btrim(COALESCE($4::text, m.body)) <> ''
@@ -255,7 +223,7 @@ func (h *Handler) update(
 
 	m, err := scanMemory(
 		h.db.QueryRow(ctx, query, userID, id,
-			in.Title, in.Body),
+			in.Title, in.Body, in.ExpectedUpdatedAt),
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Memory{}, ErrConflict
@@ -370,14 +338,13 @@ func (h *Handler) remove(
 	if err != nil {
 		return err
 	}
-	if status != "draft" {
-		return ErrNotFound
-	}
 	var attachedOrLinked bool
 	err = tx.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM memory_assets WHERE memory_id=$1::uuid)
 		    OR EXISTS(SELECT 1 FROM memory_links
-		      WHERE from_memory_id=$1::uuid OR to_memory_id=$1::uuid)`, id).
+		      WHERE from_memory_id=$1::uuid OR to_memory_id=$1::uuid)
+		    OR EXISTS(SELECT 1 FROM reflections
+		      WHERE memory_id=$1::uuid OR sealed_child_memory_id=$1::uuid)`, id).
 		Scan(&attachedOrLinked)
 	if err != nil {
 		return err
@@ -385,8 +352,12 @@ func (h *Handler) remove(
 	if attachedOrLinked {
 		return ErrConflict
 	}
-	tag, err := tx.Exec(ctx, `DELETE FROM memories WHERE id=$1::uuid AND status='draft'`, id)
+	tag, err := tx.Exec(ctx, `DELETE FROM memories WHERE id=$1::uuid`, id)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return ErrConflict
+		}
 		return err
 	}
 	if tag.RowsAffected() != 1 {
@@ -488,6 +459,7 @@ func (h *Handler) protected(next operation) http.HandlerFunc {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/memories", h.protected(h.createHTTP))
 	mux.HandleFunc("GET /api/v1/memories", h.protected(h.listHTTP))
+	mux.HandleFunc("GET /api/v1/memories/summary", h.protected(h.summaryHTTP))
 	mux.HandleFunc("GET /api/v1/memories/{id}", h.protected(h.getHTTP))
 	mux.HandleFunc("PATCH /api/v1/memories/{id}", h.protected(h.updateHTTP))
 	mux.HandleFunc("DELETE /api/v1/memories/{id}", h.protected(h.deleteHTTP))
@@ -510,10 +482,7 @@ func (h *Handler) createHTTP(w http.ResponseWriter, r *http.Request, userID stri
 }
 
 func (h *Handler) listHTTP(w http.ResponseWriter, r *http.Request, userID string) {
-	items, err := h.list(
-		r.Context(), userID,
-		r.URL.Query().Get("workspace_id"),
-	)
+	items, err := h.listFiltered(r.Context(), userID, r.URL.Query())
 	if err != nil {
 		respondError(w, err)
 		return

@@ -42,7 +42,7 @@ func WithBrowserSessions(mux *http.ServeMux, service *Service, appOrigin string)
 	mux.HandleFunc("GET /api/v1/browser/session", b.session)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/v1") {
+		if !strings.HasPrefix(r.URL.Path, "/api/v1/") {
 			mux.ServeHTTP(w, r)
 			return
 		}
