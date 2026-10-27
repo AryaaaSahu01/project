@@ -22,7 +22,6 @@ import (
 
 func main() {
 	maxConns := int64(10)
-
 	if raw := os.Getenv("DB_MAX_CONNS"); raw != "" {
 		value, err := strconv.ParseInt(raw, 10, 32)
 		if err != nil {
@@ -30,7 +29,6 @@ func main() {
 		}
 		maxConns = value
 	}
-
 	connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	db, err := postgres.Open(connectCtx, os.Getenv("DATABASE_URL"), int32(maxConns))
 	cancel()
@@ -38,18 +36,15 @@ func main() {
 		log.Fatal("PostgreSQL unavailable: ", err)
 	}
 	defer db.Close()
-
 	accountService, err := account.NewService(account.NewPostgresStore(db))
 	if err != nil {
 		log.Fatal("unable to initialize account service: ", err)
 	}
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
-
 	account.NewHandler(accountService).RegisterRoutes(mux)
 	memory.NewHandler(db, accountService).RegisterRoutes(mux)
 	conversation.NewHandler(conversation.NewService(db), accountService).RegisterRoutes(mux)
@@ -70,10 +65,8 @@ func main() {
 	}
 	if configured == len(fields) {
 		objects, err := objectstore.NewR2(context.Background(), objectstore.R2Config{
-			AccountID:       os.Getenv("R2_ACCOUNT_ID"),
-			Bucket:          os.Getenv("R2_BUCKET"),
-			AccessKeyID:     os.Getenv("R2_ACCESS_KEY_ID"),
-			SecretAccessKey: os.Getenv("R2_SECRET_ACCESS_KEY"),
+			AccountID: os.Getenv("R2_ACCOUNT_ID"), Bucket: os.Getenv("R2_BUCKET"),
+			AccessKeyID: os.Getenv("R2_ACCESS_KEY_ID"), SecretAccessKey: os.Getenv("R2_SECRET_ACCESS_KEY"),
 		})
 		if err != nil {
 			log.Fatal("unable to configure media: ", err)
@@ -81,17 +74,15 @@ func main() {
 		media.NewHandler(db, accountService, objects).RegisterRoutes(mux)
 		log.Print("Private image media routes enabled")
 	}
-
-	server := &http.Server{
-		Addr:              "127.0.0.1:8080",
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		MaxHeaderBytes:    32 << 10,
+	webHandler, err := account.WithBrowserSessions(mux, accountService, os.Getenv("APP_ORIGIN"))
+	if err != nil {
+		log.Fatal("unable to configure browser sessions: ", err)
 	}
-
+	server := &http.Server{
+		Addr: "127.0.0.1:8080", Handler: webHandler,
+		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,
+		WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10,
+	}
 	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	shutdownDone := make(chan struct{})
@@ -104,13 +95,10 @@ func main() {
 		}
 		close(shutdownDone)
 	}()
-
 	log.Printf("Unified Journal API listening at http://%s", server.Addr)
-
 	err = server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
-
 	<-shutdownDone
 }

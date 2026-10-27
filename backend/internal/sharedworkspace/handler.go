@@ -68,7 +68,6 @@ func (h *Handler) secure(next action) http.HandlerFunc {
 			respond(w, 401, map[string]string{"error": "unauthorized"})
 			return
 		}
-
 		me, err := h.accounts.Authenticate(ctx, parts[1])
 		if errors.Is(err, account.ErrUnauthorized) {
 			respond(w, 401, map[string]string{"error": "unauthorized"})
@@ -79,7 +78,6 @@ func (h *Handler) secure(next action) http.HandlerFunc {
 			return
 		}
 		next(w, r, me.User)
-
 	}
 }
 
@@ -90,6 +88,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/workspaces/{id}/invitations", h.secure(h.invite))
 	mux.HandleFunc("GET /api/v1/workspaces/{id}/invitations", h.secure(h.invitations))
 	mux.HandleFunc("DELETE /api/v1/workspaces/{id}/invitations/{inviteID}", h.secure(h.revokeInvitation))
+	mux.HandleFunc("POST /api/v1/invitations/accept", h.secure(h.accept))
+	// Keep the original spelling as a compatibility alias.
 	mux.HandleFunc("POST /api/v1/invitaions/accept", h.secure(h.accept))
 }
 
@@ -145,7 +145,6 @@ func (h *Handler) members(w http.ResponseWriter, r *http.Request, user account.U
 		respondErr(w, err)
 		return
 	}
-
 	respond(w, 200, value)
 }
 
