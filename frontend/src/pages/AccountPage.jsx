@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link, Navigate, useNavigate } from 'react-router'
 import {useAuth} from '../lib/auth.js'
 
-export default function AccountPage({haswWriting, onSignedOut}) {
+export default function AccountPage({hasWriting, onSignedOut}) {
     const { status, account, error: sessionError, refreshSession, signOut } = useAuth()
     const [confirming, setConfirming] = useState(false)
     const [submitting, setSubmitting] = useState(false)
@@ -36,6 +36,8 @@ export default function AccountPage({haswWriting, onSignedOut}) {
         )
     }
 
+    if (!account) return <Navigate to="/sign-in" replace/>
+
     return (
         <section className="account-page" aria-labelledby="account-title">
             <div className="account-form-column">
@@ -66,7 +68,7 @@ export default function AccountPage({haswWriting, onSignedOut}) {
                     </div>
                 ) : (
                   <button className="text-button account-signout" disabled={submitting}
-                    onClick={() => haswWriting ? setConfirming(true) : finishSignOut()}>
+                    onClick={() => hasWriting ? setConfirming(true) : finishSignOut()}>
                     {submitting ? 'Signing out...' : 'Sign out'}
                   </button>
                 )}

@@ -12,11 +12,11 @@ export async function apiRequest(path, {method = 'GET', body, signal} = {}) {
     try {
         response = await fetch(`/api/v1${path}`, {
             method,
-            credentials: 'same-original',
+            credentials: 'same-origin',
             cache: 'no-store',
             headers: {
                 Accept: 'application/json',
-                ...ApiError(body ===undefined ? {} : { 'Content-Type': 'application/json'}),
+                ...(body === undefined ? {} : { 'Content-Type': 'application/json'}),
             },
             body: body === undefined ? undefined : JSON.stringify(body),
             signal: signal ? AbortSignal.any([signal, timeout]) : timeout,

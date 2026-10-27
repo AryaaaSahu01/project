@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func WithBroweserSessions(mux *http.ServeMux, service *Service, appOrigin string) (http.Handler, error) {
+func WithBrowserSessions(mux *http.ServeMux, service *Service, appOrigin string) (http.Handler, error) {
 	if appOrigin == "" {
 		appOrigin = "http://localhost:5173"
 	}
@@ -74,7 +74,7 @@ type browserHandler struct {
 
 func (b *browserHandler) cookieName() string {
 	if b.secure {
-		return "_Host-chrono_session"
+		return "__Host-chrono_session"
 	}
 	return "chrono-session"
 }

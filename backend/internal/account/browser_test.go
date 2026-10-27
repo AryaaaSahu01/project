@@ -148,7 +148,7 @@ func TestBrowserSessions(t *testing.T) {
 		wantStatus(do("PATCH", "/api/v1/me", `{"display_name":"Changed"}`, origin, cookie, ""), 403)
 	}
 	wantStatus(do("PATCH", "/api/v1/me", `{"display_name":"Changed"}`, "https://journal.test", cookie, ""), 200)
-	// An explicit invalid Bearer header must not fall back to an ambient cookie.
+
 	wantStatus(do("GET", "/api/v1/me", "", "", cookie, "invalid"), 401)
 	loginBody := `{"email":"writer@example.com","password":"a-long-passphrase"}`
 	legacy := do("POST", "/api/v1/auth/login", loginBody, "", nil, "")

@@ -5,7 +5,7 @@ import { APP_CONFIG } from "../config/app.js"
 
 const byteLength = (value) => new TextEncoder().encode(value).length
 
-function validate(value, signingUp) {
+function validate(values, signingUp) {
     const errors = {}
     const email = values.email.trim()
 
@@ -19,11 +19,11 @@ function validate(value, signingUp) {
         errors.email = 'Enter a valid email address'
     }
 
-    if (!value.password) {
+    if (!values.password) {
         errors.password = 'Enter your password'
-    } else if (signingUp && Array.from(value.password).length < 12) {
+    } else if (signingUp && Array.from(values.password).length < 12) {
         errors.password = 'Use at least 12 characters for your password.'
-    } else if (byteLength(value.password) > 72) {
+    } else if (byteLength(values.password) > 72) {
         errors.password = 'This password is too long. Use fewer characters; emoji and accented characters can reach the limit sooner.'
     } 
     return errors
@@ -74,7 +74,7 @@ export default function AuthPage({mode}) {
         const nextErrors = validate(values, signingUp)
         setErrors(nextErrors)
         setError('')
-        const first = object.keys(nextErrors)[0]
+        const first = Object.keys(nextErrors)[0]
         if (first) {
             formRef.current.elements.namedItem(first)?.focus()
             return
@@ -122,7 +122,7 @@ export default function AuthPage({mode}) {
                     <div className="account-field">
                         <label htmlFor="account-email">Email address</label>
                         <input id="account-email" name="email" type="email" autoComplete="username" inputMode="email"
-                            autoCapitalize="none" spellCheck={false} required value={value.email} onChange={change} onBlur={blur}
+                            autoCapitalize="none" spellCheck={false} required value={values.email} onChange={change} onBlur={blur}
                             disabled={submitting} aria-invalid={Boolean(errors.email)}
                             aria-describedby={errors.email ? 'email-error' : undefined} />
                         {errors.email && <p className="account-field-error" id="email-error">{errors.email}</p>}
@@ -157,7 +157,7 @@ export default function AuthPage({mode}) {
             </div>
             <aside className="account-aside" aria-labelledby="account-note-title">
                 <h2 id="account-note-title">{APP_CONFIG.tagline}</h2>
-                <P>There is no perfect first sentence. Start wherever you are.</P>
+                <p>There is no perfect first sentence. Start wherever you are.</p>
                 <p className="account-storage-note">Creating an account saves your account details. Journal writing and capsule plans still stay inthis tab; download them to keep a copy.</p>
             </aside>
         </section>

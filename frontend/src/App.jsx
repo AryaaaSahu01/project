@@ -91,12 +91,13 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route 
-          element={
-            <AppLayout hasDraft={hasDraft} memories={memories} />
-          }
-        >
+      <AuthProvider>
+        <Routes>
+          <Route 
+            element={
+              <AppLayout hasDraft={hasDraft} memories={memories} />
+            }
+          >
 
           <Route index element={<Navigate to="/today" replace/>}/>
 
@@ -160,8 +161,9 @@ export default function App() {
           
 
           <Route path="*" element={<NotFoundPage/>} />
-        </Route>
-      </Routes>
+          </Route>  
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

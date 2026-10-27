@@ -1,4 +1,4 @@
-import { userCallback, useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { AuthContext } from '../lib/auth.js'
 import { ApiError, apiRequest } from '../lib/api.js'
 
