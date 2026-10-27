@@ -25,18 +25,18 @@ export async function apiRequest(path, {method = 'GET', body, signal} = {}) {
         if (signal?.aborted) throw error
         throw new ApiError (
             timeout.aborted
-                ? 'The account service took too long. Please try again.'
-                : 'Cannot reach the account service. Please try again shortly.',
+                ? 'The service took too long. Please try again.'
+                : 'Cannot reach the service. Please try again shortly.',
         )
     }
     if (!response.ok) {
-        throw new ApiError('The account request could not be completed.', response.status)
+        throw new ApiError('The request could not be completed.', response.status)
     }
     if (response.status === 204) return null
     try {
         return await response.json() 
 
     } catch {
-        throw new ApiError('The account service returned an unexpected response.')
+        throw new ApiError('The service returned an unexpected response.')
     }
 }
