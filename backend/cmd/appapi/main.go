@@ -45,6 +45,18 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
+	mux.HandleFunc("GET /ready", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		if err := db.Ping(ctx); err != nil {
+			w.WriteHeader(503)
+			_, _ = w.Write([]byte(`{"status":"unavailable"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":"ready"}`))
+	})
 	account.NewHandler(accountService).RegisterRoutes(mux)
 	memory.NewHandler(db, accountService).RegisterRoutes(mux)
 	conversation.NewHandler(conversation.NewService(db), accountService).RegisterRoutes(mux)
@@ -78,8 +90,19 @@ func main() {
 	if err != nil {
 		log.Fatal("unable to configure browser sessions: ", err)
 	}
+	if dist := os.Getenv("FRONTEND_DIST"); dist != "" {
+		frontend, err := frontendHandler(dist)
+		if err != nil {
+			log.Fatal("unable to serve frontend: ", err)
+		}
+		mux.Handle("/", frontend)
+	}
+	address := os.Getenv("API_ADDR")
+	if address == "" {
+		address = "127.0.0.1:8080"
+	}
 	server := &http.Server{
-		Addr: "127.0.0.1:8080", Handler: webHandler,
+		Addr: address, Handler: webHandler,
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,
 		WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10,
 	}
