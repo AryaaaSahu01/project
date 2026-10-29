@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth.js'
 import { JournalContext,blankDraft } from '../lib/journal.js'
 
 export default function JournalProvider({ children }) {
-    const { status: authStatus, refreshSesssion } =useAuth()
+    const { status: authStatus, refreshSession } = useAuth()
     const [workspaceState, setWorkspaceState] = useState({ status: 'loading', workspace: null, error: ''})
     const [draft, setDraft] = useState(blankDraft)
     const [revision, setRevision] = useState(0)
@@ -16,13 +16,14 @@ export default function JournalProvider({ children }) {
     const hasUnsaved = draft.existing
         ? draft.title !== draft.baseTitle || draft.body !== draft.baseBody
         : Boolean(draft.title.trim() || draft.body.trim())
-    const refresh = useCallback(() => setWorkspaceRetry((value) => value + 1), [])
+    const refresh = useCallback(() => setTick((value) => value + 1), [])
+    const retryWorkspace = useCallback(() => setWorkspaceRetry((value) => value + 1), [])
     const invalidate = useCallback(() => {
         setRevision((value) => value + 1)
         channel.current?.postMessage('changed')
     },[])
 
-    const sessionExpired = useCallback(() => {void refreshSesssion() }, [refreshSesssion] )
+    const sessionExpired = useCallback(() => { void refreshSession() }, [refreshSession] )
     useEffect (() => {
         if (authStatus !== 'signed-in') return
         const controller = new AbortController()
@@ -35,13 +36,13 @@ export default function JournalProvider({ children }) {
             if (!controller.signal.aborted) setWorkspaceState({ status: 'error', workspace: null, error: error.message })
         })
         return () => controller.abort()
-    },[authStatus, workspaceRetry]
+    },[authStatus, workspaceRetry])
     useEffect(() => {
         const check = () => { if (document.visibilityState === 'visible')refresh() }
         const timer = setInterval(check , 15000)
         window.addEventListener('focus', check)
         document.addEventListener('visibilitychange', check)
-        if ('BroadcastChannel' in Window) {
+        if ('BroadcastChannel' in window) {
             channel.current = new BroadcastChannel('chrono-journal')
             channel.current.onmessage = () => { setRevision((value) => value + 1); refresh()}
         }
