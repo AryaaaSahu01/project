@@ -15,12 +15,10 @@ func frontendHandler(directory string) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	index, err := os.ReadFile(filepath.Join(root, "index.html"))
 	if err != nil {
 		return nil, err
 	}
-
 	files := http.FileServer(http.Dir(root))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -30,16 +28,15 @@ func frontendHandler(directory string) (http.Handler, error) {
 			http.NotFound(w, r)
 			return
 		}
-
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			w.Header().Set("Allow", "GET, HEAD")
-			http.Error(w, "method now allowed", 405)
+			w.Header().Set("Allow", "GET,HEAD")
+			http.Error(w, "method not allowed", 405)
 			return
 		}
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		info, statErr := os.Stat(filepath.Join(root, filepath.FromSlash(name)))
 		if statErr == nil && !info.IsDir() && name != "index.html" {
-			if strings.HasPrefix(name, "assests/") {
+			if strings.HasPrefix(name, "assets/") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			} else {
 				w.Header().Set("Cache-Control", "no-cache")
