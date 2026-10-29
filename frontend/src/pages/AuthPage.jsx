@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react"
-import { Link, Navigate, useNavigate } from "react-router"
+import { Link, Navigate, useLocation, useNavigate } from "react-router"
 import { useAuth } from "../lib/auth.js"
 import { APP_CONFIG } from "../config/app.js"
+import AppearanceSettings from "../components/AppearanceSettings.jsx"
 
 const byteLength = (value) => new TextEncoder().encode(value).length
 
@@ -34,7 +35,7 @@ function requestError(error, signingUp) {
     if (error.status === 401) return 'This email or password is incorrect. Check both and try again.'
     if (error.status === 400) return 'Check your name, email, and password, then try again.'
     if (error.status === 403) return 'This request could not be verified. Reload the page and try again.'
-    if (error.status === 429) return 'Too many attempt. Please wait a little before trying again.'
+    if (error.status === 429) return 'Too many attempts. Please wait a little before trying again.'
     if (error.status >= 500) return 'The account service is unavailable. Please try again shortly.'
     return error.message
 }
@@ -43,6 +44,9 @@ export default function AuthPage({mode}) {
     const signingUp = mode ==='register'
     const {status, authenticate} = useAuth()
     const navigate = useNavigate()
+    const location = useLocation()
+    const requested = location.state?.from
+    const destination = typeof requested === 'string' && requested.startsWith('/') && !requested.startsWith('//') ? requested : '/account'
     const [values,setValues] = useState({displayName:'', email:'', password:''})
     const [errors, setErrors] = useState({})
     const [error, setError] = useState('')
@@ -54,7 +58,7 @@ export default function AuthPage({mode}) {
 
     useEffect(() => () => request.current?.abort(), [])
 
-    if (status === 'signed-in') return  <Navigate to="/account" replace />
+    if (status === 'signed-in') return  <Navigate to={destination} replace />
 
     function change(event) {
         const {name, value} = event.target
@@ -88,7 +92,7 @@ export default function AuthPage({mode}) {
                 password: values.password,
                 ...(signingUp ? {display_name: values.displayName.trim() }: {}),
             }, controller.signal)
-            navigate('/account', { replace: true})
+            navigate(destination, { replace: true})
         } catch (failure) {
           if (controller.signal.aborted) return
           setError(requestError(failure, signingUp))
@@ -107,7 +111,7 @@ export default function AuthPage({mode}) {
                     {signingUp ? 'A name, an email, and a place to begin.':`Sign in to your ${APP_CONFIG.name} account.`}
                 </p>
                 <form ref={formRef} className="account-form" onSubmit={submit} noValidate aria-busy={submitting}>
-                    <p className="account-required">All field are required.</p>
+                    <p className="account-required">All fields are required.</p>
                     {error && <p className="form-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</p>}
                     {signingUp && (
                         <div className="account-field">
@@ -134,7 +138,7 @@ export default function AuthPage({mode}) {
                             <input id="account-password" name="password" type={showPassword ? 'text' : 'password'}
                                 autoComplete={signingUp ? 'new-password' : 'current-password'} required value={values.password}
                                 onChange={change} onBlur={blur} disabled={submitting} aria-invalid={Boolean(errors.password)}
-                                aria-describedby={`${signingUp ? 'password-hint' : ''}${errors.password ? 'password-error':''}`.trim() || undefined} />
+                                aria-describedby={`${signingUp ? 'password-hint ' : ''}${errors.password ? 'password-error':''}`.trim() || undefined} />
                             <button type="button" onClick={() => setShowPassword((current) => !current)}
                                 aria-pressed={showPassword} aria-label="Show password" disabled={submitting}>
                                 {showPassword ? 'Hide' : 'Show'}
@@ -151,14 +155,15 @@ export default function AuthPage({mode}) {
 
                 <p className="account-switch">
                     {signingUp ? 'Already have an account? ' : `New to ${APP_CONFIG.name}? `}
-                    <Link to={signingUp ? '/sign-in' : '/sign-up'}>{signingUp ? 'Sign in':'Create an account'}</Link>
+                    <Link to={signingUp ? '/sign-in':'/sign-up'} state={location.state}>{signingUp ? 'Sign in':'Create an account'}</Link>
                 </p>
                 <Link className="account-back" to="/today">Return to your journal</Link>
             </div>
             <aside className="account-aside" aria-labelledby="account-note-title">
                 <h2 id="account-note-title">{APP_CONFIG.tagline}</h2>
                 <p>There is no perfect first sentence. Start wherever you are.</p>
-                <p className="account-storage-note">Creating an account saves your account details. Journal writing and capsule plans still stay inthis tab; download them to keep a copy.</p>
+                <p className="account-storage-note">Save your writing to your private journal. Seal a memory for a future date, then  return to it when the time is right. </p>
+                <AppearanceSettings/>
             </aside>
         </section>
     )

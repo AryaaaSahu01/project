@@ -7,7 +7,7 @@ export function validateSchedule(
     if (!memories.some((memory) => memory.id === memoryId)) {
         return {
             field: 'memoryId',
-            error: 'Choose a memory from this tab.',
+            error: 'Choose a saved, unsealed memory.',
         }
     }
 
@@ -37,10 +37,10 @@ export function validateSchedule(
         }
     }
 
-    if (date.getTime() <= now) {
+    if (date.getTime() <= now + 60000) {
         return {
             field: 'localDateTime',
-            error: 'Choose a time in the future.',
+            error: 'Choose a return time at least one minute in the future.',
         }
     }
 
@@ -72,4 +72,9 @@ export function formatSchedule(schedule) {
     }).format(new Date(schedule.scheduledAt))
 }
     
-
+export function formatReturnTime(value) {
+    return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'long',
+        timeStyle: 'short',
+    }).format(new Date(value))
+}

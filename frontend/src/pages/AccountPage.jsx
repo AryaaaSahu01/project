@@ -1,21 +1,23 @@
 import { useState } from "react"
 import { Link, Navigate, useNavigate } from 'react-router'
 import {useAuth} from '../lib/auth.js'
+import { useJournal } from "../lib/journal.js"
+import AppearanceSettings from '../components/AppearanceSettings.jsx'
 
-export default function AccountPage({hasWriting, onSignedOut}) {
+export default function AccountPage() {
     const { status, account, error: sessionError, refreshSession, signOut } = useAuth()
     const [confirming, setConfirming] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState('')
     const navigate = useNavigate()
+    const { hasUnsaved, pending } = useJournal()
 
     async function finishSignOut() {
-        if (submitting) return
+        if (submitting || pending) return
         setSubmitting(true)
         setError('')
         try {
             await signOut()
-            onSignedOut()
             navigate('/sign-in', {replace: true})
         } catch {
             setError('Could not sign out. Your sign-in is still active. Please try again.')
@@ -42,7 +44,7 @@ export default function AccountPage({hasWriting, onSignedOut}) {
         <section className="account-page" aria-labelledby="account-title">
             <div className="account-form-column">
                 <h1 id="account-title">Your account.</h1>
-                <p className="account-intro" role="status">You're signed in, {account.profile.display_name}.</p>
+                <p className="account-intro">Welcome back, {account.profile.display_name}.</p>
                 <dl className="account-details">
                     <div><dt>Your name</dt><dd>{account.profile.display_name}</dd></div>
                     <div><dt>Email address</dt><dd>{account.user.email}</dd></div>
@@ -55,28 +57,42 @@ export default function AccountPage({hasWriting, onSignedOut}) {
                 {error && <p className="form-error account-signout-error" role="alert">{error}</p>}
                 { confirming ? (
                     <div className="clear-confirmation account-signout-confirmation">
-                        <p>Signing out clears the writing and capsule plans held in this tab. Download anything you want to keep first.</p>
+                        <p>You have unsaved changes. Save them before signing out, or discard them. Your saved memories and capsules will remain in your account.</p>
                         <div className="confirmation-actions">
-                            <button className="secondary-button" disabled={submitting} onClick={finishSignOut}>
-                                {submitting ? 'Signing out...' : 'Clear tab writing and sign out'}
+                            <Link className="secondary-button" to="/memories/new">
+                                Return to writing
+                            </Link>
+                            <button
+                                className="text-button"
+                                disabled={submitting || Boolean(pending)}
+                                onClick={finishSignOut}
+                            >
+                                {submitting ? 'Signing out...' : 'Discard changes and sign out'}
                             </button>
-                            <button className="text-button" disabled={submitting} onClick={() => setConfirming(false)}>Keep writing</button>
+                            <button
+                                className="text-button"
+                                disabled={submitting}
+                                onClick={() => setConfirming(false)}
+                            >
+                                Stay Signed in
+                            </button>
                         </div>
-                        <Link className="account-back" to="/memories">Review and download memories</Link>
-                        <Link className="account-back" to="/memories/new">Review and download unfinished writing</Link>
-                        <Link className="account-back" to="/capsules">Review and download capsule plans</Link>
                     </div>
                 ) : (
-                  <button className="text-button account-signout" disabled={submitting}
-                    onClick={() => hasWriting ? setConfirming(true) : finishSignOut()}>
+                    <button 
+                    className="text-button account-signout" 
+                    disabled={submitting || Boolean(pending)}
+                    onClick={() => hasUnsaved ? setConfirming(true) : finishSignOut()}
+                    >
                     {submitting ? 'Signing out...' : 'Sign out'}
-                  </button>
+                    </button>
                 )}
+                {pending > 0 && <p className="page-note" role="status">Finish saving before signing out.</p>}
             </div>
             <aside className="account-aside" aria-labelledby="account-note-title">
-                <h2 id="account-note-title">A little clarity.</h2>
-                <p>Your account is ready to use.</p>
-                <p className="account-storage-note">Journal writing and capsule plans are still held in this tab. Signing in does not upload them yet; download a copy before refreshing or closing the page.</p>
+                <h2 id="account-note-title">Make yourself at home.</h2>
+                <p>Your saved memories and capsules stay in your account when you sign out.</p>
+                <AppearanceSettings/>
             </aside>
         </section>
     )
