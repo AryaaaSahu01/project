@@ -1,58 +1,104 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
+import { blankDraft, journalError, useJournal, useMemory, useMemoryCollection } from '../lib/journal.js'
 import Icon from '../components/Icon.jsx'
 import { formatSchedule, validateSchedule } from '../lib/capsuleSchedule.js'
 
-export default function CapsulePlannerPage({ memories, draft, onChange, onKeep }) {
-  const navigate = useNavigate()
+export default function CapsulePlannerPage() {
+  const [params] = useSearchParams()
+  const [plan, setPlan] = useState({
+    memoryId: params.get('memory') || '',
+    localDateTime: ''
+  })
+  const [query, setQuery] = useState('')
   const [review, setReview] = useState(null)
-  const [error, setError] = useState(null)
-  const memoryRef = useRef(null)
-  const timeRef = useRef(null)
-  const reviewRef = useRef(null)
-  const source = memories.find((memory) => memory.id === draft.memoryId)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const { draft, hasUnsaved, mutate, setDraft, refresh } = useJournal()
+  const collection = useMemoryCollection({ state: 'draft', q: query })
+  const selected = useMemory(plan.memoryId)
+
+  const source = selected.memory?.state ==='draft'
+    ? selected.memory
+    : collection.items
+
+  const request = useRef(null)
+  const reviewRef= useRef(null)
+  const formRef = useRef(null)
+  const navigate = useNavigate()
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Device local time'
 
+  useEffect(() => () => request.current?.abort(), [])
   useEffect(() => { if (review) reviewRef.current?.focus() }, [review])
 
-  function reportError(result) {
-    setError(result)
+  function change(name, value) {
+    setPlan((current) => ({ ...current, [name]: value }))
     setReview(null)
-    window.requestAnimationFrame(() => {
-      const field = result.field === 'memoryId' ? memoryRef : timeRef
-      field.current?.focus()
-    })
+    setError('')
   }
-  function changeField(field, value) {
-    onChange({ ...draft, [field]: value })
-    setError(null)
-    setReview(null)
+  
+  function validate() {
+    const result = validateSchedule(
+      plan.memoryId,
+      plan.localDateTime,
+      source ? [source] : []
+    )
+    if (result.error) {
+      setError(result.error)
+      formRef.current?.elements.namedItem(result.field)?.focus()
+      return  null
+    }
+    if (hasUnsaved && draft.id === plan.memoryId) {
+      setError('You have unsaved changes to this memory. Save them before sealing.')
+      return null
+    }
+    return result.schedule
   }
+
   function reviewPlan(event) {
     event.preventDefault()
-    const result = validateSchedule(draft.memoryId, draft.localDateTime, memories)
-    if (result.error) { reportError(result); return }
-    setError(null)
-    setReview(result.schedule)
-  }
-  function keepPlan() {
-    const result = validateSchedule(draft.memoryId, draft.localDateTime, memories)
-    if (result.error) { reportError(result); return }
-    if (onKeep(result.schedule)) {
-      navigate('/capsules')
-    } else {
-      reportError({ field: 'memoryId', error: 'That memory is no longer available. Choose another memory.' })
+    const result = validate()
+
+    if (result) {
+      setError('')
+      setReview(result)
     }
   }
 
-  if (!memories.length) {
-    return (
-      <section className="planner-page">
-        <Link className="text-link" to="/capsules">Back to time capsules</Link>
-        <div className="page-heading"><div><h1>Begin with a memory.</h1><p>A capsule start with something worth returning to.</p></div></div>
-        <div className="empty-state"><h2>Your words come first.</h2><p>Write a memory, choose "Keep in this tab", then return here to plan its date.</p><Link className="write-action" to="/memories/new"><Icon name="pen" />Write a memory</Link></div>
-      </section>
-    )
+  async function seal() {
+    if (request.current) return
+
+    const result = validate()
+    if (!result) return
+
+    const controller = new  AbortController()
+    request.current = controller
+    setBusy(true)
+    setError('')
+
+    try {
+      await mutate(`/memories/${plan.memoryId}/seal`, {
+        method: 'POST',
+        body: { unlock_at: result.scheduledAt },
+        signal: controller.signal
+      })
+
+      if (draft.id === plan.memoryId) {
+        setDraft(blankDraft())
+      }
+
+      if (!controller.signal.aborted) {
+        navigate(`/memories/${plan.memoryId}`, { replace: true })
+      }
+    } catch (failure) {
+      if (!controller.signal.aborted) {
+        setError(journalError(failure))
+      }
+    } finally {
+      request.current = null 
+      if (!controller.signal.aborted) setBusy(false)
+    }
   }
 
   return (
@@ -62,42 +108,174 @@ export default function CapsulePlannerPage({ memories, draft, onChange, onKeep }
         <div><h1 id="planner-heading">Give it<br /><em>a little time.</em></h1><p>A memory from today. A moment for your future self.</p></div>
         <Icon name="clock" className="editor-emblem" />
       </div>
-      <p className="planning-note"><strong>This is an unsealed plan.</strong> Your memory stays readable. Planning does not lock your writing or send a reminder.</p>
-      <ol className="planning-steps" aria-label="Planning progress">
+      <p className="planning-note">
+        Sealing hides your memory's title and words until its return  time.
+        You can delete a sealed memory, but you cannot read it early or change its date.
+      </p>
+
+      <ol className="planning-steps" aria-label="Sealing progress">
         <li aria-current={!review ? 'step' : undefined}>Choose a memory and date</li>
-        <li aria-current={review ? 'step' : undefined}>Review your plan</li>
+        <li aria-current={review ? 'step' : undefined}>Review and seal</li>
       </ol>
-      {error && <p className="form-error" id="schedule-error" role="alert">{error.error}</p>}
+
+      {(error || collection.error) && (
+        <p className='form=error' role='alert'>
+          {error || collection.error}
+        </p>
+      )}
       {review ? (
         <section className="schedule-review" aria-labelledby="review-heading">
-          <h2 id="review-heading" ref={reviewRef} tabIndex={-1}>A moment to make sure.</h2>
+          <h2 id="review-heading" ref={reviewRef} tabIndex={-1}>
+            A moment to make sure.
+          </h2>
           <dl className="review-list">
-            <div><dt>Memory</dt><dd>{source?.title}</dd></div>
-            <div><dt>Return date</dt><dd><time dateTime={review.scheduledAt}>{formatSchedule(review)}</time></dd></div>
-            <div><dt>Time zone</dt><dd>{review.timeZone}</dd></div>
-            <div><dt>Plan status</dt><dd>Unsealed - In this tab</dd></div>
+            <div>
+              <dt>Memory</dt>
+              <dd>{source?.title || 'Your saved memory'}</dd>
+            </div>
+            <div>
+              <dt>Return time</dt>
+              <dd>
+                <time dateTime={review.scheduledAt}>
+                  {formatSchedule(review)}
+                </time>
+              </dd>
+            </div>
+            <div>
+              <dt>Time zone</dt>
+              <dd>{review.timeZone}</dd>
+            </div>
           </dl>
-          <p className="page-note">Your writing stays in Memories. Keeping this plan will not seal it. Download your writing and plan before refreshing or closing this tab.</p>
-          <div className="editor-actions"><button className="write-action" onClick={keepPlan}>Keep plan in this tab</button><button className="secondary-button" onClick={() => setReview(null)}>Change details</button></div>
+          <p className="page-note">
+            Once sealed, this memory stays locked until this time.
+            Then it becomes ready for you to open.
+          </p>
+
+          <div className="editor-actions">
+            <button 
+              className="write-action" 
+              disabled={busy}
+              onClick={seal}
+            >
+              {busy ? 'Sealing...' : 'Seal memory'}
+            </button>
+
+            <button
+              className='Secondary-button'
+              disabled={busy}
+              onClick={() => setReview(null)}
+            >
+              Change details
+            </button>
+          </div>
         </section>
       ) : (
-        <form className="schedule-form" onSubmit={reviewPlan} noValidate>
-          <div className="field">
-            <label htmlFor="capsule-memory">Memory to return to</label>
-            <select id="capsule-memory" ref={memoryRef} value={draft.memoryId} onChange={(event) => changeField('memoryId', event.target.value)} required
-              aria-invalid={error?.field === 'memoryId'} aria-describedby={error?.field === 'memoryId' ? 'schedule-error' : undefined}>
-              <option value="">Choose a memory</option>
-              {memories.map((memory) => <option value={memory.id} key={memory.id}>{memory.title}</option>)}
+        <form 
+          className="schedule-form" 
+          ref = {formRef}
+          onSubmit={reviewPlan} 
+          noValidate
+        >
+          <div className='field'>
+            <label htmlFor='capsule-search'>Find a saved memory</label>
+            <input
+              id="capsule-search"
+              type="search"
+              value={query}
+              maxLength={120}
+              placeholder="Search your saved writing..."
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+
+          <div className='field'>
+            <label htmlFor='capsule-memory'>Memory to seal</label>
+            <select
+              id='capsule-memory'
+              name='memoryId'
+              value={plan.memoryId}
+              onChange={(event) => change('memoryId', event.target.value)}
+              required
+            >
+              <option value = "">Choose a saved memory</option>
+              {choices.map((memory) => (
+                <option value={memory.id} key={memory.id}>
+                  {memory.title}
+                </option>
+              ))}
             </select>
           </div>
-          <div className="field">
-            <label htmlFor="capsule-date">When would you like to return?</label>
-            <input id="capsule-date" ref={timeRef} type="datetime-local" step="60" value={draft.localDateTime}
-              onChange={(event) => changeField('localDateTime', event.target.value)} required
-              aria-invalid={error?.field === 'localDateTime'} aria-describedby={`zone-note${error?.field === 'localDateTime' ? ' schedule-error' : ''}`} />
-            <p className="schedule-zone" id="zone-note">Time Zone: {zone}. Choose a future date and time.</p>
+          {collection.status === 'loading' && (
+            <p className='page-note' role="status">
+              Finding your saved memories...
+            </p>
+          )}
+
+          { collection.more && (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={collection.loadMore}
+              disabled={collection.status === 'paging'}
+            >
+              Load more memories
+            </button>
+          )}
+
+          {!choices.length && collection.status !== 'loading' && !collection.error && (
+            <p className='page-note'>
+              {query
+                ? 'No saved memories match. Try another word.'
+                : 'Start by saving a memory.'}{' '}
+              <Link className='text-link' to="/memories/new">
+                Write a memory
+              </Link>
+            </p>
+          )}
+
+          {collection.error && (
+            <button
+              type='button'
+              className='secondary-button'
+              onClick={refresh}
+            >
+              Try again
+            </button>
+          )}
+
+          <div className='field'>
+            <label htmlFor='capsule-data'>
+              When would you like to return?
+            </label>
+            <input 
+              id="capsule-date"
+              name="localDateTime"
+              type="datetime-local"
+              step="60"
+              required
+              value={plan.localDateTime}
+              onChange={(event) => change('localDateTime', event.target.value)}
+              aria-describedby='zone-note'
+            />
+            <p className='"schedule-zone' id='zone-note'>
+              Time zone: {zone}. Choose at least two minutes from now.
+            </p>
           </div>
-          <div className="editor-actions"><button className="write-action" type="submit">Review plan<Icon name="arrow" /></button><Link className="text-link" to="/capsules">Return to capsules</Link></div>
+
+          <div className='editor-actions'>
+            <button
+              className='write-action'
+              type='submit'
+              disabled={selected.status === 'loading' && Boolean(plan.memoryId)}
+            >
+              Review before sealing
+              <Icon name="arrow"/>
+            </button>
+
+            <Link className='text-link' to='/memories'>
+              Return to memories
+            </Link>
+          </div>
         </form>
       )}
     </section>
