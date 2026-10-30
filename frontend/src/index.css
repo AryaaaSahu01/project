@@ -39,7 +39,10 @@ h1, h2, p, blockquote { margin: 0; }
 a { color: inherit; text-decoration: none; }
 svg { flex-shrink: 0; }
 input, textarea { font: inherit; }
-::selection { background: var(--selection-bg); color: var(--selection-bg); }
+::selection { 
+  background: var(--selection-bg);
+  color: var(--selection-text); 
+}
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 5px; }
 section, main { scroll-margin-top: 24px; }
 summary { cursor: pointer; list-style: none; }

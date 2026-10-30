@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState} from 'react'
 import { Link, useParams, useNavigate } from 'react-router'
 import { journalError, useJournal, useMemory } from '../lib/journal.js'
-import { formatReturnTime, fromatReturnTime } from '../lib/capsuleSchedule.js'
+import { formatReturnTime } from '../lib/capsuleSchedule.js'
 import Icon from '../components/Icon.jsx'
 
 

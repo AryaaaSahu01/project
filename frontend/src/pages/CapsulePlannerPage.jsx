@@ -19,9 +19,13 @@ export default function CapsulePlannerPage() {
   const collection = useMemoryCollection({ state: 'draft', q: query })
   const selected = useMemory(plan.memoryId)
 
-  const source = selected.memory?.state ==='draft'
-    ? selected.memory
-    : collection.items
+  const source = 
+    selected.memory?.status === 'draft' ? selected.memory : null
+
+  const choices = 
+    source && !collection.items.some((entry) => entry.id === source.id)
+      ? [source, ...collection.items]
+      : collection.items
 
   const request = useRef(null)
   const reviewRef= useRef(null)
@@ -119,7 +123,7 @@ export default function CapsulePlannerPage() {
       </ol>
 
       {(error || collection.error) && (
-        <p className='form=error' role='alert'>
+        <p className='form-error' role='alert'>
           {error || collection.error}
         </p>
       )}
@@ -161,7 +165,7 @@ export default function CapsulePlannerPage() {
             </button>
 
             <button
-              className='Secondary-button'
+              className='secondary-button'
               disabled={busy}
               onClick={() => setReview(null)}
             >
@@ -244,7 +248,7 @@ export default function CapsulePlannerPage() {
           )}
 
           <div className='field'>
-            <label htmlFor='capsule-data'>
+            <label htmlFor='capsule-date'>
               When would you like to return?
             </label>
             <input 
@@ -257,7 +261,7 @@ export default function CapsulePlannerPage() {
               onChange={(event) => change('localDateTime', event.target.value)}
               aria-describedby='zone-note'
             />
-            <p className='"schedule-zone' id='zone-note'>
+            <p className='schedule-zone' id='zone-note'>
               Time zone: {zone}. Choose at least two minutes from now.
             </p>
           </div>
