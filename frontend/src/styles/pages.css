@@ -20,8 +20,8 @@ a { text-underline-offset: 0.2em; }
 .text-link { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; color: var(--leather); font-size: 0.875rem; text-decoration: underline; }
 .text-link:hover { color: var(--ink); }
 .browse-link { margin-top: 12px; }
-.capsule-link { margin-top: 18px; color: var(--cream); }
-.capsule-link:hover { color: var(--cream); text-decoration-thickness: 2px; }
+.capsule-link { margin-top: 18px; color: var(--capsule-text); }
+.capsule-link:hover { color: var(--capsule-text); text-decoration-thickness: 2px; }
 .draft-reminder { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 24px; padding: 12px 20px; margin-bottom: 32px; background: var(--linen); border-radius: 4px; }
 .draft-reminder p { color: var(--muted); font-size: 0.875rem; line-height: 1.6; }
 .memory-list { list-style: none; margin: 0; padding: 0; border-bottom: 1px solid var(--line); }
@@ -40,8 +40,8 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .empty-state p { margin: 16px 0 24px; color: var(--muted); line-height: 1.8; max-width: 58ch; }
 .secondary-button, .danger-button { display: inline-flex; align-items: center; justify-content: center; min-height: var(--touch-target); padding: 12px 20px; border: 1px solid var(--leather); border-radius: 4px; color: var(--leather); background: transparent; font-size: 0.875rem; font-weight: 600; }
 .secondary-button:hover { background: var(--linen); }
-.danger-button { color: var(--cream); background: var(--oxblood); border-color: var(--oxblood); }
-.danger-button:hover { background: var(--ink); }
+.danger-button { color: var(--on-danger); background: var(--oxblood); border-color: var(--oxblood); }
+.danger-button:hover { background: var(--ink); color: var(--inverse-text); }
 .page-note { margin-top: 28px; color: var(--muted); font-size: 0.8125rem; line-height: 1.8; max-width: 76ch; }
 .reading-page { max-width: 46rem; margin-inline: auto; }
 .reading-header { padding: 44px 0 32px; border-bottom: 1px solid var(--line); }

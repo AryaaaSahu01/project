@@ -224,9 +224,80 @@ export default function MemoryPage() {
             >
               Seal for later
             </Link>
+
+            <button
+              className='secondary-button'
+              disabled={busy}
+              onClick={() => edit()}
+            >
+              Edit memory
+            </button>
           </>
         )}
+
+        <button 
+          className='text-button'
+          disabled={busy}
+          onClick={() => setConfirming('delete')}
+        >
+          Delete memory
+        </button>
+
+        <Link className='text-link' to="/memories/new">
+          Write another memory
+        </Link>
       </div>
+
+      {confirming === 'delete' && (
+        <div className='clear-confirmation'>
+          <p>
+            Delete this memory permanently? This cannot be undone.
+          </p>
+
+          <div className='confirmation-actions'>
+            <button
+              className='danger-button'
+              disabled={busy}
+              onClick={() => act('delete')}
+            >
+              {busy ? 'Deleting...' : 'Delete permanently'}
+            </button>
+
+            <button
+              className='secondary-button'
+              disabled={busy}
+              onClick={() => setConfirming('')}
+            >
+              Keep memory
+            </button>
+          </div>
+        </div>
+      )}
+
+      {confirming === 'edit' && (
+        <div className='clear-confirmation'>
+          <p>
+            You have other unsaved writing. Discard those changes
+            and edit this memory?
+          </p>
+
+          <div className='confirmation-actions'>
+            <button
+              className='secondary-button'
+              onClick={() => edit(true)}
+            >
+              Discard changes and edit
+            </button>
+
+            <button
+              className='text-link'
+              onClick={() => setConfirming('')}
+            >
+              Keep current writing
+            </button>
+          </div>
+        </div>
+      )}
     </article>
   )
 }
