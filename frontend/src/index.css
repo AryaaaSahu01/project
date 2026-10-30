@@ -78,7 +78,7 @@ h1 { font-family: var(--serif); font-size: clamp(3rem, 4.8vw, 4.75rem); font-wei
 h1 em { color: var(--leather); font-weight: 400; }
 .welcome > p { max-width: 27ch; padding-bottom: 6px; color: var(--muted); font-size: 0.875rem; line-height: 1.9; }
 .composer { margin-top: 26px; }
-.write-action { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: var(--touch-target); padding: 13px 21px; border-radius: 5px; color: var(--cream); background: var(--leather); font-size: 0.8125rem; font-weight: 600; transition: background 160ms ease; }
+.write-action { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: var(--touch-target); padding: 13px 21px; border-radius: 5px; color: var(--on-primary); background: var(--leather); font-size: 0.8125rem; font-weight: 600; transition: background 160ms ease; }
 .write-action:hover { background: var(--ink); }
 .writing-sheet { display: grid; gap: 12px; margin-top: 24px; padding: 28px; background: var(--cream); border: 1px solid var(--line); }
 .writing-note { margin-bottom: 12px; color: var(--oxblood); font-size: 0.8125rem; line-height: 1.6; }

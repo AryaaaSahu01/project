@@ -24,7 +24,7 @@ func frontendHandler(directory string) (http.Handler, error) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("X-Frame-Options", "DENY")
-		if strings.HasPrefix(r.URL.Path, "/api") || r.URL.Path == "/api" {
+		if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api" {
 			http.NotFound(w, r)
 			return
 		}
