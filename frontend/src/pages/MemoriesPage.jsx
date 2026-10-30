@@ -1,24 +1,22 @@
 import { Link, useSearchParams } from 'react-router'
+import { useJournal, useMemoryCollection } from '../lib/journal.js'
 import MemoryList from '../components/MemoryList.jsx'
 import Icon from '../components/Icon.jsx'
 
-export default function MemoriesPage({ hasDraft, memories }) {
+export default function MemoriesPage() {
   const [params, setParams] = useSearchParams()
   const query = params.get('q') || ''
   const sort = params.get('sort') === 'oldest' ? 'oldest' : 'newest'
-  const terms = query.trim().toLocaleLowerCase()
-  
-  const visible = memories
-    .filter((memory) =>
-      [memory.title, memory.body].some((value) =>
-        value.toLocaleLowerCase().includes(terms),
-      ),
-    )
-    .sort((a,b) =>
-      sort ==='oldest'
-        ? a.date.localeCompare(b.date)
-        : b.date.localeCompare(a.date),
-    )
+  const { hasUnsaved, refresh } = useJournal()
+
+  const {
+    items,
+    status,
+    error,
+    more,
+    loadMore
+  } = useMemoryCollection({ q: query, sort })
+
   function updateParam(key,value) {
     const next = new URLSearchParams(params)
 
@@ -37,22 +35,24 @@ export default function MemoriesPage({ hasDraft, memories }) {
 
         <Link className='write-action' to='/memories/new'>
           <Icon name='pen'/>
-          {hasDraft ? 'Continue writing':'Write a memory'}
+          {hasUnsaved ? 'Continue writing':'Write a memory'}
         </Link>
       </section>
 
-      {memories.length > 0 && (
+      
         <div className='library-tools'>
           <div className='field search-field'>
-            <label htmlFor='memory-search'>Search memories</label>
+            <label htmlFor='memory-search'>Search your writing</label>
             <input
               id="memory-search"
               type="search"
               value={query}
-              placeholder='A title, a moment, a word...'
+              maxLength={120}
+              placeholder='A title, a moment, a world...'
               onChange={(event) =>
                 updateParam('q', event.target.value)
               }
+              aria-describedby="search-note"
             />
           </div>
           
@@ -70,39 +70,80 @@ export default function MemoriesPage({ hasDraft, memories }) {
             </select>
           </div>
         </div>
-      )}
+        
+        <p className="results-note" id="search-note">
+            Sealed words stay hidden from search until you open them.
+        </p>
 
-      <p className='results-note' role='status'>
-        {visible.length} {visible.length === 1 ? 'memory' : 'memories'}
-        {terms && memories.length ? ' found' : ' in this tab'}
-      </p>
+        {error && (
+          <div>
+            <p className='form-error' role="alert">
+              {error}
+            </p>
+            <button
+              className='secondary-button'
+              onClick={refresh}
+            >
+              Try again
+            </button>
+          </div>
+        )}
 
-      {visible.length ? (
-        <MemoryList memories={visible} />
-      ) : memories.length ? (
-        <section className='empty-state'>
-          <h2>No pages match those words.</h2>
-          <p>
-            Try another word, or clear your search to see your memories.
+        {status === 'loading' ? (
+          <p className="page-note" role="status">
+            Opening your saved memories...
           </p>
-          <button
-            className='secondary-button'
-            onClick={() => updateParam('q', '')}
-          >
-            Clear Search
-          </button>
-        </section>
-      ) : (
-        <section className='empty-state'>
-          <h2>Every story starts somewhere.</h2>
-          <p>
-            Write a memory and choose "Keep in this tab" to see it here.
-          </p>
-          <Link className='secondary-button' to='/memories/new'>
-            {hasDraft ? 'Continue writing' : 'Write your first memory'}
-          </Link>
-        </section>
-      )}
+        ) : (
+          <>
+            <p className="results-note" role="status">
+              {items.length} {items.length === 1 ? 'memory':'memories'}
+              {more ? ' shown' : query ? ' found' : ''}
+            </p>
+
+            {items.length ? (
+              <MemoryList memories={items} />
+            ) : !error ? (
+              <section className='empty-state'>
+                <h2>
+                  {query
+                    ? 'No pages match those words.'
+                    : 'Every story starts somewhere.'}
+                </h2>
+                <p>
+                  {query
+                    ? 'Try another word, or clear your search.'
+                    : 'Write a memory and save it to your journal.'}
+                </p>
+                
+                {query ? (
+                  <button
+                    className='secondary-button'
+                    onClick={() => updateParam('q', '')}
+                  >
+                    Clear search
+                  </button>
+                ) : (
+                  <Link
+                    className='secondary-button'
+                    to="/memories/new"
+                  >
+                    Write your first memory
+                  </Link>
+                )}
+              </section>
+            ) : null}
+
+            {more && (
+              <button
+                className='secondary-button load-more'
+                disabled={status === 'paging'}
+                onClick={loadMore}
+              >
+                {status === 'paging' ? 'Loading...' : 'Load more memories'} 
+              </button>
+            )}
+          </>
+        )}
     </>
   )
 }
