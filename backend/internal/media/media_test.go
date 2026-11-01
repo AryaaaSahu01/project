@@ -14,11 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"journalapp/internal/account"
 	"journalapp/internal/memory"
 	"journalapp/internal/platform/objectstore"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func tinyPNG(t *testing.T) []byte {
@@ -73,8 +74,6 @@ func TestContainerValidation(t *testing.T) {
 	}
 }
 
-// Opt-in against development PostgreSQL only; each run uses its own schema and
-// temporary private file directory, and never changes public application data.
 func TestPrivateMediaLifecycle(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -205,7 +204,7 @@ func TestPrivateMediaLifecycle(t *testing.T) {
 	}
 	want(request("GET", content, owner.AccessToken, nil, map[string]string{"Range": "bytes=999999-"}), 416)
 	want(request("HEAD", content, owner.AccessToken, nil, nil), 200)
-	// Invalid content never becomes readable, and quota size checks happen first.
+
 	bad := map[string]string{"Content-Type": "image/png", "X-Upload-Size": "12", "X-Upload-Name": "bad.png"}
 	want(request("POST", path, owner.AccessToken, []byte("not an image"), bad), 422)
 	bad["X-Upload-Size"] = "999999999"
@@ -247,7 +246,7 @@ func TestPrivateMediaLifecycle(t *testing.T) {
 		body.Close()
 		t.Fatal("deleted memory left its private file")
 	}
-	// Detaching from a saved draft also queues deletion, without deleting text.
+
 	id = create()
 	path = "/memories/" + id + "/media"
 	delete(headers, "X-Upload-ID")
