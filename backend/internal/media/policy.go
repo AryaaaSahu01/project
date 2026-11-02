@@ -27,7 +27,7 @@ type mediaRule struct {
 	MaxBytes int64  `json:"max_bytes"`
 }
 
-var rule = map[string]mediaRule{
+var rules = map[string]mediaRule{
 	"image/jpeg": {"image", 10 << 20}, "image/png": {"image", 10 << 20}, "image/webp": {"image", 10 << 20},
 	"audio/mpeg": {"audio", 25 << 20}, "audio/wav": {"audio", 25 << 20}, "audio/ogg": {"audio", 25 << 20},
 	"audio/webm": {"audio", 25 << 20}, "audio/mp4": {"audio", 25 << 20},
@@ -93,7 +93,7 @@ func inspectFile(f *os.File, contentType string) error {
 	case "audio/wav":
 		ok = len(prefix) >= 12 && string(prefix[:4]) == "RIFF" && string(prefix[8:12]) == "WAVE"
 	case "audio/ogg":
-		ok = bytes.HasPrefix(prefix, []byte("Oggs\x00"))
+		ok = bytes.HasPrefix(prefix, []byte("OggS\x00"))
 	case "audio/mpeg":
 		ok = bytes.HasPrefix(prefix, []byte("ID3")) || len(prefix) > 2 && prefix[0] == 0xff && prefix[1]&0xe0 == 0xe0 && prefix[1]&0x06 != 0
 	case "audio/mp4", "video/mp4":

@@ -5,7 +5,7 @@ import { checkFile, formatBytes, mediaAccept, mediaContentURL, uploadMedia } fro
 import VoiceRecorder from './VoiceRecorder.jsx'
 import '../styles/media.css'
 
-function MediaPreview ({ meoryID, item}) {
+function MediaPreview ({ memoryID, item}) {
     const url = mediaContentURL(memoryID, item.id)
     const [failed, setFailed] = useState(false)
     if (failed) return <p className="field-hint" role="status">Preview unavailable. Refresh your journal or try a browser that supports this format.</p>
@@ -77,7 +77,7 @@ export default function MediaAttachments({ memoryID, editable }) {
         const release = beginMedia()
         try {
             await apiRequest(`/memories/${memoryID}/media/${id}`, { method: 'DELETE'})
-            if (active.current) { setItems((current) => current.filter((item) => item.id)); setConfirming(null); setNotice('Attachment removed.')}
+            if (active.current) { setItems((current) => current.filter((item) => item.id !== id)); setConfirming(null); setNotice('Attachment removed.')}
         } catch (failure) { if (active.current) { setError(failure.message); if (failure.status === 401) sessionExpired() }}
         finally { release(); if (active.current) setDeleting(false)}
     }
@@ -94,7 +94,7 @@ export default function MediaAttachments({ memoryID, editable }) {
         </>}
         {progress && <div className="upload-status"><label htmlFor="media-progress">{progress.percent === 100 ? 'Checking and saving' : 'Uploading'} {progress.name}</label><progress id="media-progress" max="100" value={progress.percent} /><span role="status">{progress.percent}% transferred</span><button type="button" className="text-button" onClick={() => upload.current?.abort()}>Cancel upload</button></div>}
         {items.length > 0 && <ul className="attachment-list">{items.map((item) => <li className="attachment" key={item.id}>
-            <div className="attachmet-heading"><div><h3>{item.name}</h3><p>{item.source === 'voice' ? 'Voice note' : item.kind === 'image' ? 'Picture' : item.kind === 'audio' ? 'Audio' : 'Video'} · {formatBytes(items.verified_bytes)}</p></div>{editable && <button type="button" className="text-button" disabled={Boolean(pending)} onClick={() => setConfirming(item)} aria-label={`Remove ${item.name}`}>Remove</button>}</div>
+            <div className="attachment-heading"><div><h3>{item.name}</h3><p>{item.source === 'voice' ? 'Voice note' : item.kind === 'image' ? 'Picture' : item.kind === 'audio' ? 'Audio' : 'Video'} · {formatBytes(item.verified_bytes)}</p></div>{editable && <button type="button" className="text-button" disabled={Boolean(pending)} onClick={() => setConfirming(item)} aria-label={`Remove ${item.name}`}>Remove</button>}</div>
             <MediaPreview memoryID={memoryID} item={item} />
             {confirming?.id === item.id && <div className="clear-confirmation"><p>Remove this attachment permanently? Your written memory will remain.</p><div className="confirmation-actions"><button type="button" className="danger-button" disabled={deleting} onClick={remove}>{deleting ? 'Removing…' : 'Remove attachment'}</button><button type="button" className="secondary-button" disabled={deleting} onClick={() => setConfirming(null)}>Keep attachment</button></div></div>}
         </li>)}</ul>}

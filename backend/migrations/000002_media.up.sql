@@ -23,5 +23,5 @@ END;
 $$;
 DROP TRIGGER IF EXISTS memory_asset_cleanup ON memory_assets;
 CREATE TRIGGER memory_asset_cleanup AFTER DELETE ON memory_assets
-    FOR EACH ROW EXECUTIVE FUNCTION queue_detached_media();
+    FOR EACH ROW EXECUTE FUNCTION queue_detached_media();
 COMMIT;
