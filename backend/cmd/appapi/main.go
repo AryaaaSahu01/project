@@ -64,28 +64,24 @@ func main() {
 	memorylink.NewHandler(memorylink.NewService(db), accountService).RegisterRoutes(mux)
 	sharedworkspace.NewHandler(sharedworkspace.NewService(db), accountService).RegisterRoutes(mux)
 
-	// R2 is optional in local development. If configured, require all four values.
-	fields := []string{"R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"}
-	configured := 0
-	for _, name := range fields {
-		if os.Getenv(name) != "" {
-			configured++
-		}
+	//media files stay outside postgresql, its metadata and authorization remain there
+	// local directory is never mounted as a public file server and shouldn't be tried
+	objects, driver, err := objectstore.FromEnv(context.Background())
+	if err != nil {
+		log.Fatal("unable to configure attachments: ", err)
 	}
-	if configured != 0 && configured != len(fields) {
-		log.Fatal("all four R2_* variables are required to enable media")
+
+	if _, err := db.Exec(context.Background(), `SELECT original_name, memory_id, source FROM media_assets LIMIT 0`); err != nil {
+		log.Fatal("apply backend/migrations/000002_media.up.sql before starting this API")
 	}
-	if configured == len(fields) {
-		objects, err := objectstore.NewR2(context.Background(), objectstore.R2Config{
-			AccountID: os.Getenv("R2_ACCOUNT_ID"), Bucket: os.Getenv("R2_BUCKET"),
-			AccessKeyID: os.Getenv("R2_ACCESS_KEY_ID"), SecretAccessKey: os.Getenv("R2_SECRET_ACCESS_KEY"),
-		})
-		if err != nil {
-			log.Fatal("unable to configure media: ", err)
-		}
-		media.NewHandler(db, accountService, objects).RegisterRoutes(mux)
-		log.Print("Private image media routes enabled")
-	}
+
+	media.NewHandler(db, accountService, objects).RegisterRoutes(mux)
+	cleanupCtx, stopCleanup := context.WithCancel(context.Background())
+	cleanupDone := make(chan struct{})
+	go func() { defer close(cleanupDone); media.RunCleanup(cleanupCtx, db, objects) }()
+	defer func() { stopCleanup(); <-cleanupDone }()
+	log.Printf("Private attachments enabled (storage: %s)", driver)
+
 	webHandler, err := account.WithBrowserSessions(mux, accountService, os.Getenv("APP_ORIGIN"))
 	if err != nil {
 		log.Fatal("unable to configure browser sessions: ", err)
@@ -103,8 +99,8 @@ func main() {
 	}
 	server := &http.Server{
 		Addr: address, Handler: webHandler,
-		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,
-		WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10,
+		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Minute,
+		WriteTimeout: 5 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10,
 	}
 	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()

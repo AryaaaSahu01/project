@@ -35,28 +35,11 @@ func main() {
 	defer db.Close()
 
 	service := dueevent.NewService(db)
-	var objects *objectstore.R2
-	r2Names := []string{"R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"}
-	r2Count := 0
-	for _, name := range r2Names {
-		if os.Getenv(name) != "" {
-			r2Count++
-		}
+	objects, _, err := objectstore.FromEnv(root)
+	if err != nil {
+		log.Fatal("unable to configure media cleanup: ", err)
 	}
-	if r2Count != 0 && r2Count != len(r2Names) {
-		log.Fatal("all four R2_* variables are required for media cleanup")
-	}
-	if r2Count == len(r2Names) {
-		objects, err = objectstore.NewR2(root, objectstore.R2Config{
-			AccountID:       os.Getenv("R2_ACCOUNT_ID"),
-			Bucket:          os.Getenv("R2_BUCKET"),
-			AccessKeyID:     os.Getenv("R2_ACCESS_KEY_ID"),
-			SecretAccessKey: os.Getenv("R2_SECRET_ACCESS_KEY"),
-		})
-		if err != nil {
-			log.Fatal("unable to configure media cleanup: ", err)
-		}
-	}
+
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	log.Print("Durable due-event worker started (every 60 seconds)")
