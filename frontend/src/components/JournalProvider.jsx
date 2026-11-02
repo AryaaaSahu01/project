@@ -11,6 +11,19 @@ export default function JournalProvider({ children }) {
     const [tick, setTick] = useState(0)
     const [workspaceRetry, setWorkspaceRetry] = useState(0)
     const [pending, setPending] = useState(0)
+
+    const beginMedia = useCallback(() => {
+        setPending((value) => value + 1)
+        let active = true
+
+        return () => {
+            if (active) {
+                active = false 
+                setPending((value) => value - 1)
+            }
+        }
+    }, [])
+
     const [summary, setSummary] = useState({ draft: 0, sealed:0, ready: 0, returned:0})
     const channel = useRef(null)
     const hasUnsaved = draft.existing
@@ -56,11 +69,11 @@ export default function JournalProvider({ children }) {
         return () => controller.abort()
     }, [workspaceState.workspace, tick, revision, sessionExpired])
     useEffect(() => {
-        if (!hasUnsaved) return
+        if (!hasUnsaved && !pending) return
         const warn = (event) => { event.preventDefault(); event.returnValue=''}
         window.addEventListener('beforeunload', warn)
         return () => window.removeEventListener('beforeunload', warn)
-    }, [hasUnsaved])
+    }, [hasUnsaved, pending])
     async function mutate(path, options) {
         setPending((value) => value+1)
         try {
@@ -83,5 +96,5 @@ export default function JournalProvider({ children }) {
         setDraft(blankDraft())
         return memory
     }
-    return <JournalContext.Provider value={{ ...workspaceState, draft, setDraft, hasUnsaved, revision, tick, pending, summary, refresh, retryWorkspace, invalidate, sessionExpired, saveDraft ,mutate }}>{children}</JournalContext.Provider>
+    return <JournalContext.Provider value={{ ...workspaceState, draft, setDraft, hasUnsaved, revision, tick, pending, summary, refresh, retryWorkspace, invalidate, sessionExpired, saveDraft, mutate, beginMedia }}>{children}</JournalContext.Provider>
 }        

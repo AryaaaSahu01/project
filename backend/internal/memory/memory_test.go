@@ -13,13 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"journalapp/internal/account"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"journalapp/internal/account"
 )
 
-// This opt-in suite creates and drops its own schema. It never changes public
-// tables. Use a development/test database whose user may create schemas.
 func TestPersistentMemoryLifecycle(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -70,6 +69,13 @@ func TestPersistentMemoryLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	mediaMigration, err := os.ReadFile("../../migrations/000002_media.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, string(mediaMigration)); err != nil {
 		t.Fatal(err)
 	}
 	svc, err := account.NewService(account.NewPostgresStore(pool))
@@ -143,8 +149,7 @@ func TestPersistentMemoryLifecycle(t *testing.T) {
 	if err != nil || len(items) != 0 {
 		t.Fatalf("sealed search oracle: %d %v", len(items), err)
 	}
-	// Move only this fixture's schedule into the past to test the real SQL gate
-	// without making every test run wait three minutes.
+
 	if _, err := pool.Exec(ctx, `UPDATE memories SET sealed_at=now()-interval '3 minutes',unlock_at=now()-interval '1 minute' WHERE id=$1::uuid`, m.ID); err != nil {
 		t.Fatal(err)
 	}

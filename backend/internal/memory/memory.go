@@ -239,30 +239,43 @@ func (h *Handler) seal(
 		return Memory{}, ErrInput
 	}
 
-	query := `
-		UPDATE memories AS m SET
-			status = 'sealed',
-			sealed_at = now(),
-			unlock_at = $3,
-			updated_at = now()
-		WHERE m.id = $2::uuid
-			AND m.status = 'draft'
-			AND $3 > now()
-			AND EXISTS (
-				SELECT 1 FROM workspace_members wm
-				WHERE wm.workspace_id = m.workspace_id
-					AND wm.user_id = $1::uuid
-					AND wm.role IN ('owner', 'editor')
-			)
-		RETURNING ` + selectColumns
-
-	m, err := scanMemory(
-		h.db.QueryRow(ctx, query, userID, id, unlockAt.UTC()),
-	)
+	tx, err := h.db.Begin(ctx)
+	if err != nil {
+		return Memory{}, err
+	}
+	defer tx.Rollback(ctx)
+	var state string
+	err = tx.QueryRow(ctx, `SELECT m.status FROM memories m JOIN workspace_members wm ON wm.workspace_id=m.workspace_id
+        WHERE m.id=$2::uuid AND wm.user_id=$1::uuid AND wm.role IN ('owner','editor') FOR UPDATE OF m`, userID, id).Scan(&state)
 	if errors.Is(err, pgx.ErrNoRows) {
+		return Memory{}, ErrNotFound
+	}
+	if err != nil {
+		return Memory{}, err
+	}
+	if state != "draft" {
 		return Memory{}, ErrConflict
 	}
-	return m, err
+	var pending bool
+	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM media_assets WHERE memory_id=$1::uuid AND status='pending')`, id).Scan(&pending)
+	if err != nil {
+		return Memory{}, err
+	}
+	if pending {
+		return Memory{}, ErrConflict
+	}
+	m, err := scanMemory(tx.QueryRow(ctx, `UPDATE memories AS m SET status='sealed',sealed_at=now(),unlock_at=$2,updated_at=now()
+        WHERE id=$1::uuid AND $2>now()+interval '1 minute' RETURNING `+selectColumns, id, unlockAt.UTC()))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Memory{}, ErrInput
+	}
+	if err != nil {
+		return Memory{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Memory{}, err
+	}
+	return m, nil
 }
 
 func (h *Handler) open(
@@ -340,7 +353,7 @@ func (h *Handler) remove(
 	}
 	var attachedOrLinked bool
 	err = tx.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM memory_assets WHERE memory_id=$1::uuid)
+		SELECT EXISTS(SELECT 1 FROM media_assets WHERE memory_id=$1::uuid AND status='pending')
 		    OR EXISTS(SELECT 1 FROM memory_links
 		      WHERE from_memory_id=$1::uuid OR to_memory_id=$1::uuid)
 		    OR EXISTS(SELECT 1 FROM reflections
