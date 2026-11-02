@@ -15,7 +15,7 @@ export default function CapsulePlannerPage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const { draft, hasUnsaved, mutate, setDraft, refresh } = useJournal()
+  const { draft, hasUnsaved, mutate, setDraft, refresh, pending } = useJournal()
   const collection = useMemoryCollection({ state: 'draft', q: query })
   const selected = useMemory(plan.memoryId)
 
@@ -73,6 +73,8 @@ export default function CapsulePlannerPage() {
   async function seal() {
     if (request.current) return
 
+    if (pending) return
+
     const result = validate()
     if (!result) return
 
@@ -113,7 +115,7 @@ export default function CapsulePlannerPage() {
         <Icon name="clock" className="editor-emblem" />
       </div>
       <p className="planning-note">
-        Sealing hides your memory's title and words until its return  time.
+        Sealing hides your memory's title, words and attachments until you open it after its return time.
         You can delete a sealed memory, but you cannot read it early or change its date.
       </p>
 
@@ -158,7 +160,7 @@ export default function CapsulePlannerPage() {
           <div className="editor-actions">
             <button 
               className="write-action" 
-              disabled={busy}
+              disabled={busy || Boolean(pending)}
               onClick={seal}
             >
               {busy ? 'Sealing...' : 'Seal memory'}
@@ -166,7 +168,7 @@ export default function CapsulePlannerPage() {
 
             <button
               className='secondary-button'
-              disabled={busy}
+              disabled={busy || Boolean(pending)}
               onClick={() => setReview(null)}
             >
               Change details

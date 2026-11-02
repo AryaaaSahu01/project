@@ -30,7 +30,12 @@ export async function apiRequest(path, {method = 'GET', body, signal} = {}) {
         )
     }
     if (!response.ok) {
-        throw new ApiError('The request could not be completed.', response.status)
+        let message = 'The request could not be completed.'
+        try {
+            const data = await response.json()
+            if (typeof data.error === 'string') message = data.error
+        } catch {/* Keep a useful fallback for a non-JSON proxy error. */}
+        throw new ApiError(message, response.status)
     }
     if (response.status === 204) return null
     try {

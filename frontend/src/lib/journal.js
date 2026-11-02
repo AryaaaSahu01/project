@@ -21,7 +21,7 @@ export function journalError(error) {
   if (error.status === 401) return 'Your sign-in has expired. Sign in again to continue.'
   if (error.status === 400) return 'Check the details. The return time must be at least one minute in the future.'
   if (error.status === 404) return 'This memory is unavailable or has been deleted.'
-  if (error.status === 409) return 'This memory changed, or has linked writing or media. Refresh before trying again.'
+  if (error.status === 409) return 'This memory changed, has linked writing or an upload is unfinished. Refresh before trying again.'
   if (error.status === 423) return 'This capsule is still sealed. It can only be opened after its return time.'
   if (error.status >= 500) return 'Your journal could not be reached. Your saved writing is still safe. Please try again.'
   return error.message
