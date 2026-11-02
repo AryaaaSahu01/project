@@ -6,42 +6,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"mime"
 	"net/http"
-	"os"
-	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	"journalapp/internal/account"
+	"journalapp/internal/platform/objectstore"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"journalapp/internal/account"
-	"journalapp/internal/httpapi"
-	"journalapp/internal/platform/objectstore"
 )
-
-const (
-	maxImageBytes     int64 = 10 << 20
-	maxWorkspaceBytes int64 = 100 << 20
-	maxWorkspaceItems       = 20
-	maxMemoryItems          = 10
-)
-
-var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 type Handler struct {
 	db       *pgxpool.Pool
 	accounts *account.Service
-	objects  *objectstore.R2
+	objects  objectstore.Store
+	uploads  chan struct{}
 }
 
-func NewHandler(db *pgxpool.Pool, accounts *account.Service, objects *objectstore.R2) *Handler {
-	return &Handler{db: db, accounts: accounts, objects: objects}
-}
-
-type intentInput struct {
-	ContentType   string `json:"content_type"`
-	DeclaredBytes int64  `json:"declared_bytes"`
+func NewHandler(db *pgxpool.Pool, accounts *account.Service, objects objectstore.Store) *Handler {
+	return &Handler{db: db, accounts: accounts, objects: objects, uploads: make(chan struct{}, 2)}
 }
 
 type asset struct {
@@ -49,43 +36,58 @@ type asset struct {
 	ContentType   string `json:"content_type"`
 	VerifiedBytes int64  `json:"verified_bytes"`
 	Position      int    `json:"position"`
+	Name          string `json:"name"`
+	Kind          string `json:"kind"`
+	Source        string `json:"source"`
 }
 
-func respond(w http.ResponseWriter, code int, value any) {
-	w.Header().Set("Cache-Control", "no-store")
+const assetColumns = `a.id::text,a.content_type,a.verified_bytes,ma.position,a.original_name,a.kind,a.source`
+
+func readAsset(row interface{ Scan(...any) error }) (asset, error) {
+	var a asset
+	err := row.Scan(&a.ID, &a.ContentType, &a.VerifiedBytes, &a.Position, &a.Name, &a.Kind, &a.Source)
+	return a, err
+}
+func respond(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if value != nil {
 		w.Header().Set("Content-Type", "application/json")
 	}
-	w.WriteHeader(code)
+	w.WriteHeader(status)
 	if value != nil {
 		_ = json.NewEncoder(w).Encode(value)
 	}
 }
-
-func fail(w http.ResponseWriter, code int, message string) {
-	respond(w, code, map[string]string{"error": message})
+func fail(w http.ResponseWriter, status int, msg string) {
+	respond(w, status, map[string]string{"error": msg})
 }
-
 func serverError(w http.ResponseWriter, err error) {
-	// The server log retains the cause; never expose object keys or SDK errors.
-	fmt.Fprintf(os.Stderr, "media request failed: %v\n", err)
-	fail(w, http.StatusInternalServerError, "media request failed")
+	log.Printf("media request failed: %v", err)
+	fail(w, 503, "Your attachment could not be reached. Please try again.")
 }
-
+func newID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[:4], b[4:6], b[6:8], b[8:10], b[10:]), nil
+}
 func (h *Handler) secure(next func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Minute)
 		defer cancel()
 		r = r.WithContext(ctx)
-		parts := strings.Fields(r.Header.Get("Authorization"))
-		if len(r.Header.Get("Authorization")) > 128 || len(parts) != 2 ||
-			!strings.EqualFold(parts[0], "Bearer") {
-			fail(w, http.StatusUnauthorized, "unauthorized")
+		fields := strings.Fields(r.Header.Get("Authorization"))
+		if len(r.Header.Get("Authorization")) > 128 || len(fields) != 2 || !strings.EqualFold(fields[0], "Bearer") {
+			fail(w, 401, "Sign in to use attachments.")
 			return
 		}
-		me, err := h.accounts.Authenticate(ctx, parts[1])
+		me, err := h.accounts.Authenticate(ctx, fields[1])
 		if errors.Is(err, account.ErrUnauthorized) {
-			fail(w, http.StatusUnauthorized, "unauthorized")
+			fail(w, 401, "Your sign-in has expired. Sign in again.")
 			return
 		}
 		if err != nil {
@@ -95,132 +97,49 @@ func (h *Handler) secure(next func(http.ResponseWriter, *http.Request, string)) 
 		next(w, r, me.User.ID)
 	}
 }
-
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/v1/memories/{id}/media/intents", h.secure(h.intent))
-	mux.HandleFunc("POST /api/v1/memories/{id}/media/{assetID}/finalize", h.secure(h.finalize))
+	mux.HandleFunc("GET /api/v1/media/config", h.secure(func(w http.ResponseWriter, r *http.Request, _ string) {
+		respond(w, 200, map[string]any{"formats": rules, "max_memory_items": maxMemoryItems, "max_workspace_bytes": maxWorkspaceBytes, "max_workspace_items": maxWorkspaceItems})
+	}))
+	mux.HandleFunc("POST /api/v1/memories/{id}/media", h.secure(h.upload))
 	mux.HandleFunc("GET /api/v1/memories/{id}/media", h.secure(h.list))
-	mux.HandleFunc("GET /api/v1/memories/{id}/media/{assetID}/download", h.secure(h.download))
+	mux.HandleFunc("DELETE /api/v1/memories/{id}/media/{assetID}", h.secure(h.remove))
+	mux.HandleFunc("GET /api/v1/memories/{id}/media/{assetID}/content", h.secure(h.content))
+	mux.HandleFunc("HEAD /api/v1/memories/{id}/media/{assetID}/content", h.secure(h.content))
+	// Retire the prototype's public signed-link flow. No new bearer URLs are issued.
+	retired := h.secure(func(w http.ResponseWriter, r *http.Request, _ string) {
+		fail(w, 410, "Use the private attachment upload and content endpoints.")
+	})
+	mux.HandleFunc("POST /api/v1/memories/{id}/media/intents", retired)
+	mux.HandleFunc("POST /api/v1/memories/{id}/media/{assetID}/finalize", retired)
+	mux.HandleFunc("GET /api/v1/memories/{id}/media/{assetID}/download", retired)
 }
-
-func newID() (string, error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", err
+func validID(id string) bool {
+	if len(id) != 36 {
+		return false
 	}
-	b[6] = b[6]&0x0f | 0x40
-	b[8] = b[8]&0x3f | 0x80
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
-}
-
-func (h *Handler) intent(w http.ResponseWriter, r *http.Request, userID string) {
-	memoryID := r.PathValue("id")
-	if !uuid.MatchString(memoryID) {
-		fail(w, 400, "invalid memory ID")
-		return
-	}
-	var in intentInput
-	code, err := httpapi.DecodeJSON(w, r, &in, 4096)
-	if err != nil {
-		fail(w, code, err.Error())
-		return
-	}
-	if (in.ContentType != "image/jpeg" && in.ContentType != "image/png") ||
-		in.DeclaredBytes <= 0 || in.DeclaredBytes > maxImageBytes {
-		fail(w, 400, "use image/jpeg or image/png with 1 to 10485760 bytes")
-		return
-	}
-	tx, err := h.db.Begin(r.Context())
-	if err != nil {
-		serverError(w, err)
-		return
-	}
-	defer tx.Rollback(r.Context())
-	var workspaceID string
-	err = tx.QueryRow(r.Context(), `
-		SELECT w.id::text FROM memories m
-		JOIN workspaces w ON w.id=m.workspace_id
-		JOIN workspace_members wm ON wm.workspace_id=w.id
-		WHERE m.id=$2::uuid AND m.status='draft'
-		  AND w.kind='personal' AND w.owner_user_id=$1::uuid
-		  AND wm.user_id=$1::uuid AND wm.role='owner'
-		FOR UPDATE OF w, m`, userID, memoryID).Scan(&workspaceID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		fail(w, 404, "draft memory not found")
-		return
-	}
-	if err != nil {
-		serverError(w, err)
-		return
-	}
-	var count, reserved int64
-	err = tx.QueryRow(r.Context(), `
-		SELECT count(*), COALESCE(sum(CASE WHEN status='ready' THEN verified_bytes
-		  ELSE declared_bytes END), 0)
-		FROM media_assets WHERE workspace_id=$1::uuid
-		  AND (status='ready' OR (status='pending' AND created_at>now()-interval '15 minutes'))`,
-		workspaceID).Scan(&count, &reserved)
-	if err != nil {
-		serverError(w, err)
-		return
-	}
-	if count >= maxWorkspaceItems || reserved+in.DeclaredBytes > maxWorkspaceBytes {
-		fail(w, 429, "image quota reached")
-		return
-	}
-	id, err := newID()
-	if err != nil {
-		serverError(w, err)
-		return
-	}
-	key := "pending/" + workspaceID + "/" + id
-	_, err = tx.Exec(r.Context(), `
-		INSERT INTO media_assets
-		(id, workspace_id, uploaded_by, object_key, kind, content_type, declared_bytes)
-		VALUES ($1::uuid,$2::uuid,$3::uuid,$4,'image',$5,$6)`,
-		id, workspaceID, userID, key, in.ContentType, in.DeclaredBytes)
-	if err != nil {
-		serverError(w, err)
-		return
-	}
-	url, signed, err := h.objects.PresignUpload(r.Context(), key, in.ContentType)
-	if err != nil {
-		serverError(w, err)
-		return
-	}
-	if err := tx.Commit(r.Context()); err != nil {
-		serverError(w, err)
-		return
-	}
-	// Content-Type must exactly match the signed value during the client's PUT.
-	headers := map[string]string{"Content-Type": in.ContentType}
-	for name, values := range signed {
-		if len(values) > 0 && !strings.EqualFold(name, "Host") {
-			headers[name] = values[0]
+	for i, c := range id {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+		} else if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+			return false
 		}
 	}
-	respond(w, 201, map[string]any{
-		"asset_id": id, "upload_url": url, "upload_headers": headers,
-		"expires_at": time.Now().UTC().Add(10 * time.Minute),
-	})
+	return true
 }
-
-// ownedMemory never discloses metadata for another user's workspace.
 func (h *Handler) ownedMemory(ctx context.Context, userID, memoryID string) (string, string, error) {
 	var workspaceID, status string
-	err := h.db.QueryRow(ctx, `
-		SELECT m.workspace_id::text, m.status FROM memories m
-		JOIN workspaces w ON w.id=m.workspace_id
-		JOIN workspace_members wm ON wm.workspace_id=w.id
-		WHERE m.id=$2::uuid AND w.kind='personal'
-		  AND w.owner_user_id=$1::uuid AND wm.user_id=$1::uuid AND wm.role='owner'`,
-		userID, memoryID).Scan(&workspaceID, &status)
+	err := h.db.QueryRow(ctx, `SELECT m.workspace_id::text,m.status FROM memories m
+        JOIN workspaces w ON w.id=m.workspace_id JOIN workspace_members wm ON wm.workspace_id=w.id
+        WHERE m.id=$2::uuid AND w.kind='personal' AND w.owner_user_id=$1::uuid
+        AND wm.user_id=$1::uuid AND wm.role='owner'`, userID, memoryID).Scan(&workspaceID, &status)
 	return workspaceID, status, err
 }
-
 func memoryAccess(w http.ResponseWriter, err error, status string) bool {
 	if errors.Is(err, pgx.ErrNoRows) {
-		fail(w, 404, "memory not found")
+		fail(w, 404, "Memory not found.")
 		return false
 	}
 	if err != nil {
@@ -228,28 +147,24 @@ func memoryAccess(w http.ResponseWriter, err error, status string) bool {
 		return false
 	}
 	if status == "sealed" {
-		fail(w, 423, "open the memory before viewing media")
+		fail(w, 423, "Open the capsule before viewing attachments.")
 		return false
 	}
 	return true
 }
-
 func (h *Handler) list(w http.ResponseWriter, r *http.Request, userID string) {
-	memoryID := r.PathValue("id")
-	if !uuid.MatchString(memoryID) {
-		fail(w, 400, "invalid memory ID")
+	id := r.PathValue("id")
+	if !validID(id) {
+		fail(w, 400, "Invalid memory.")
 		return
 	}
-	_, status, err := h.ownedMemory(r.Context(), userID, memoryID)
+	_, status, err := h.ownedMemory(r.Context(), userID, id)
 	if !memoryAccess(w, err, status) {
 		return
 	}
-	rows, err := h.db.Query(r.Context(), `
-		SELECT a.id::text, a.content_type, a.verified_bytes, ma.position
-		FROM memory_assets ma JOIN media_assets a
-		  ON a.id=ma.asset_id AND a.workspace_id=ma.workspace_id
-		WHERE ma.memory_id=$1::uuid AND a.status='ready'
-		ORDER BY ma.position, a.id LIMIT 10`, memoryID)
+	rows, err := h.db.Query(r.Context(), `SELECT `+assetColumns+` FROM memory_assets ma
+        JOIN media_assets a ON a.id=ma.asset_id AND a.workspace_id=ma.workspace_id
+        WHERE ma.memory_id=$1::uuid AND a.status='ready' ORDER BY ma.position,a.created_at,a.id LIMIT 10`, id)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -257,8 +172,8 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, userID string) {
 	defer rows.Close()
 	items := make([]asset, 0)
 	for rows.Next() {
-		var a asset
-		if err := rows.Scan(&a.ID, &a.ContentType, &a.VerifiedBytes, &a.Position); err != nil {
+		a, err := readAsset(rows)
+		if err != nil {
 			serverError(w, err)
 			return
 		}
@@ -270,37 +185,109 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, userID string) {
 	}
 	respond(w, 200, items)
 }
-
-func (h *Handler) download(w http.ResponseWriter, r *http.Request, userID string) {
-	memoryID, assetID := r.PathValue("id"), r.PathValue("assetID")
-	if !uuid.MatchString(memoryID) || !uuid.MatchString(assetID) {
-		fail(w, 400, "invalid ID")
+func (h *Handler) content(w http.ResponseWriter, r *http.Request, userID string) {
+	id, assetID := r.PathValue("id"), r.PathValue("assetID")
+	if !validID(id) || !validID(assetID) {
+		fail(w, 400, "Invalid attachment.")
 		return
 	}
-	_, status, err := h.ownedMemory(r.Context(), userID, memoryID)
+	// One query authorizes the memory, attachment and current sealed state.
+	var key, contentType, status, name string
+	var size int64
+	err := h.db.QueryRow(r.Context(), `SELECT a.object_key,a.content_type,a.verified_bytes,m.status,a.original_name
+        FROM memories m JOIN workspaces w ON w.id=m.workspace_id
+        JOIN workspace_members wm ON wm.workspace_id=w.id
+        JOIN memory_assets ma ON ma.memory_id=m.id AND ma.workspace_id=m.workspace_id
+        JOIN media_assets a ON a.id=ma.asset_id AND a.workspace_id=ma.workspace_id
+        WHERE m.id=$2::uuid AND a.id=$3::uuid AND a.status='ready'
+        AND w.kind='personal' AND w.owner_user_id=$1::uuid AND wm.user_id=$1::uuid AND wm.role='owner'`, userID, id, assetID).
+		Scan(&key, &contentType, &size, &status, &name)
 	if !memoryAccess(w, err, status) {
 		return
 	}
-	var key string
-	err = h.db.QueryRow(r.Context(), `
-		SELECT a.object_key FROM memory_assets ma
-		JOIN media_assets a ON a.id=ma.asset_id AND a.workspace_id=ma.workspace_id
-		WHERE ma.memory_id=$1::uuid AND ma.asset_id=$2::uuid AND a.status='ready'`,
-		memoryID, assetID).Scan(&key)
-	if errors.Is(err, pgx.ErrNoRows) {
-		fail(w, 404, "image not found")
-		return
-	}
+	offset, length, partial, err := parseRange(r.Header.Get("Range"), size)
 	if err != nil {
-		serverError(w, err)
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", size))
+		fail(w, 416, "Requested range is unavailable.")
 		return
 	}
-	url, err := h.objects.PresignDownload(r.Context(), key)
-	if err != nil {
-		serverError(w, err)
-		return
+	var bodyErr error
+	if r.Method != http.MethodHead {
+		body, err := h.objects.ReadRange(r.Context(), key, offset, length)
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		defer body.Close()
+		setContentHeaders(w, contentType, name, size, offset, length, partial)
+		if partial {
+			w.WriteHeader(http.StatusPartialContent)
+		}
+		_, bodyErr = copyBytes(w, body, length)
+	} else {
+		setContentHeaders(w, contentType, name, size, offset, length, partial)
+		if partial {
+			w.WriteHeader(http.StatusPartialContent)
+		}
 	}
-	respond(w, 200, map[string]any{
-		"download_url": url, "expires_at": time.Now().UTC().Add(time.Minute),
-	})
+	if bodyErr != nil {
+		log.Printf("attachment stream interrupted: %v", bodyErr)
+	}
+}
+func setContentHeaders(w http.ResponseWriter, contentType, name string, size, offset, length int64, partial bool) {
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Length", strconv.FormatInt(length, 10))
+	w.Header().Set("Accept-Ranges", "bytes")
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": safeName(name)}))
+	if partial {
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", offset, offset+length-1, size))
+	}
+}
+
+// A single RFC byte range covers normal audio/video seeking. Reject multi-range
+// requests rather than constructing multipart responses or unbounded allocations.
+func parseRange(value string, size int64) (int64, int64, bool, error) {
+	bad := errors.New("invalid range")
+	if size <= 0 {
+		return 0, 0, false, bad
+	}
+	if value == "" {
+		return 0, size, false, nil
+	}
+	if !strings.HasPrefix(value, "bytes=") || strings.Contains(value, ",") {
+		return 0, 0, false, bad
+	}
+	a, b, ok := strings.Cut(strings.TrimPrefix(value, "bytes="), "-")
+	if !ok {
+		return 0, 0, false, bad
+	}
+	if a == "" {
+		n, err := strconv.ParseInt(b, 10, 64)
+		if err != nil || n <= 0 {
+			return 0, 0, false, bad
+		}
+		if n > size {
+			n = size
+		}
+		return size - n, n, true, nil
+	}
+	start, err := strconv.ParseInt(a, 10, 64)
+	if err != nil || start < 0 || start >= size {
+		return 0, 0, false, bad
+	}
+	end := size - 1
+	if b != "" {
+		end, err = strconv.ParseInt(b, 10, 64)
+		if err != nil || end < start {
+			return 0, 0, false, bad
+		}
+		if end >= size {
+			end = size - 1
+		}
+	}
+	return start, end - start + 1, true, nil
 }
