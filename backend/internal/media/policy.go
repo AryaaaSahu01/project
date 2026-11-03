@@ -86,7 +86,7 @@ func inspectFile(f *os.File, contentType string) error {
 				return err
 			}
 			cfg, _, err := image.DecodeConfig(f)
-			ok = err == nil && cfg.Width > 0 && cfg.Height > 0 && int64(cfg.Width)*int64(cfg.Height) <= 4000000
+			ok = err == nil && cfg.Width > 0 && cfg.Height > 0 && int64(cfg.Width)*int64(cfg.Height) <= 40000000
 		}
 	case "image/webp":
 		ok = len(prefix) >= 12 && string(prefix[:4]) == "RIFF" && string(prefix[8:12]) == "WEBP"
