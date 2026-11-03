@@ -15,7 +15,8 @@ export default function WritePage() {
   const words = draft.body.trim() ? draft.body.trim().split(/\s+/u).length : 0
   function change(name, value) { setDraft((current) => ({ ...current, [name]: value })); setError(''); setConfirmDiscard(false) }
   async function save(destination) {
-    if (request.current || (!draft.title.trim() || draft.body.trim())) return
+    if (request.current) return
+    if (!draft.title.trim() || draft.body.trim()) return
     const controller = new AbortController()
     request.current = controller
     setSubmitting(true); setError('')
