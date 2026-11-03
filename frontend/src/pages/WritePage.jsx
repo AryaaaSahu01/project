@@ -16,7 +16,7 @@ export default function WritePage() {
   function change(name, value) { setDraft((current) => ({ ...current, [name]: value })); setError(''); setConfirmDiscard(false) }
   async function save(destination) {
     if (request.current) return
-    if (!draft.title.trim() || draft.body.trim()) return
+    if (!draft.title.trim() && draft.body.trim()) return
     const controller = new AbortController()
     request.current = controller
     setSubmitting(true); setError('')
