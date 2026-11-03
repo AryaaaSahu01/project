@@ -38,7 +38,7 @@ func FromEnv(ctx context.Context) (Store, string, error) {
 		s, err := NewLocal(root)
 		return s, driver, err
 	case "r2":
-		s, err := NewR2(ctx, R2Config{AccountID: os.Getenv("R2_ACCOUNT_iD"), Bucket: os.Getenv("R2_BUCKET"), AccessKeyID: os.Getenv("R2_ACCESS_KEY_ID"), SecretAccessKey: os.Getenv("R2_SECRET_ACCESS_KEY")})
+		s, err := NewR2(ctx, R2Config{AccountID: os.Getenv("R2_ACCOUNT_ID"), Bucket: os.Getenv("R2_BUCKET"), AccessKeyID: os.Getenv("R2_ACCESS_KEY_ID"), SecretAccessKey: os.Getenv("R2_SECRET_ACCESS_KEY")})
 		return s, driver, err
 	case "s3":
 		bucket := strings.TrimSpace(os.Getenv("S3_BUCKET"))
@@ -110,7 +110,7 @@ func (s *Local) path(key string) (string, error) {
 			return "", errors.New("empty key segment")
 		}
 		for _, c := range part {
-			if !(c >= 'a' && c <= '2' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
 				return "", errors.New("invalid local key")
 			}
 		}

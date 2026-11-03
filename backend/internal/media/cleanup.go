@@ -10,7 +10,7 @@ import (
 	"journalapp/internal/platform/objectstore"
 )
 
-func CleanupExpired(ctx context.Context, db *pgxpool.Pool, objects *objectstore.Store) (int, error) {
+func CleanupExpired(ctx context.Context, db *pgxpool.Pool, objects objectstore.Store) (int, error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -43,7 +43,7 @@ func CleanupExpired(ctx context.Context, db *pgxpool.Pool, objects *objectstore.
 	}
 
 	keys := make([]string, 0)
-	for row.Next() {
+	for rows.Next() {
 		var key string
 		if err := rows.Scan(&key); err != nil {
 			rows.Close()
@@ -86,7 +86,7 @@ func CleanupExpired(ctx context.Context, db *pgxpool.Pool, objects *objectstore.
 	return count, nil
 }
 
-func RunCleanup(ctx, context.Context, db *pgxpool.Pool, objects objectstore.Store) {
+func RunCleanup(ctx context.Context, db *pgxpool.Pool, objects objectstore.Store) {
 	timer := time.NewTicker(time.Minute)
 	defer timer.Stop()
 
@@ -96,12 +96,12 @@ func RunCleanup(ctx, context.Context, db *pgxpool.Pool, objects objectstore.Stor
 		cancel()
 
 		if err != nil && ctx.Err() == nil {
-			log.Printf("attachment cleanup failed: %v" ,err)
+			log.Printf("attachment cleanup failed: %v", err)
 		}
 
 		select {
-		case <- ctx.Done()
-			return 
+		case <-ctx.Done():
+			return
 		case <-timer.C:
 		}
 	}
