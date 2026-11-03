@@ -14,14 +14,20 @@ export default function WritePage() {
   useEffect(() => () => request.current?.abort(), [])
   const words = draft.body.trim() ? draft.body.trim().split(/\s+/u).length : 0
   function change(name, value) { setDraft((current) => ({ ...current, [name]: value })); setError(''); setConfirmDiscard(false) }
-  async function save(andSeal) {
-    if (request.current || !draft.body.trim()) return
+  async function save(destination) {
+    if (request.current || !draft.body.trim() || draft.body.trim()) return
     const controller = new AbortController()
     request.current = controller
     setSubmitting(true); setError('')
     try {
       const memory = await saveDraft(controller.signal)
-      if (!controller.signal.aborted) navigate(andSeal ? `/capsules/new?memory=${memory.id}` : `/memories/${memory.id}`)
+      if (!controller.signal.aborted) {
+        navigate(
+          destination === 'seal'
+            ? `/capsules/new?memory=${memory.id}`
+            : `/memories/${memory.id}${destination === 'media' ? '#attachments' : ''}`
+        )
+      }
     } catch (failure) { if (!controller.signal.aborted) setError(journalError(failure)) }
     finally { request.current = null; if (!controller.signal.aborted) setSubmitting(false) }
   }
@@ -39,7 +45,48 @@ export default function WritePage() {
       <label htmlFor="draft-body">Your words</label><textarea id="draft-body" className="draft-body" value={draft.body} onChange={(event) => change('body', event.target.value)} placeholder="Today, I want to remember…" maxLength={50000} aria-describedby="body-limit" disabled={submitting} /><span id="body-limit" className="field-hint">{draft.body.length.toLocaleString()}/50,000 characters</span>
     </div>}
     {error && <p className="form-error editor-error" role="alert">{error} Your unsaved words are still here.</p>}
-    <div className="editor-actions"><button className="write-action" disabled={submitting || !draft.body.trim()} onClick={() => save(false)}>{submitting ? 'Saving…' : draft.existing ? 'Save changes' : 'Save memory'}</button><button className="secondary-button" disabled={submitting || !draft.body.trim()} onClick={() => save(true)}>Save &amp; seal…</button><button className="text-button" disabled={submitting || !hasUnsaved && !draft.existing} onClick={() => setConfirmDiscard(true)}>Discard changes</button></div>
+    <div className="editor-actions">
+      <button
+        className='write-action'
+        disabled={submitting || !(draft.title.trim() || draft.body.trim())}
+        onClick={() => save('read')}
+      >
+        {submitting
+          ? 'Saving...'
+          : draft.existing
+            ? 'Save changes'
+            : 'Save memory'}
+      </button>
+
+      <button 
+        className='secondary-button'
+        disabled={submitting || !(draft.title.trim() || draft.body.trim())}
+        onClick={() => save('seal')}
+      >
+        Save &amp; seal...
+      </button>
+
+      <button
+        className='secondary-button'
+        disabled={submitting || !(draft.title.trim() || draft.body.trim())}
+        onClick={() => save('media')}
+      >
+        Save &amp; add media
+      </button>
+
+      <button
+        className='text-button'
+        disabled={submitting || (!hasUnsaved && !draft.existing)}
+        onClick={() => setConfirmDiscard(true)}
+      >
+        Discard changes
+      </button>
+    </div>
+    <p className='page-note'>
+          Photos, audio, video and voice notes belong to a saved memory.
+          Choose save &amp; add media to attach them next.
+          A title is enough if your memory is mainly a recording or picture. 
+    </p>
     <p className="editor-status" role="status">{submitting ? 'Saving your memory…' : hasUnsaved ? 'Unsaved changes. Save before leaving or closing this page.' : 'Ready when you are.'}</p>
     {confirmDiscard && <div className="clear-confirmation"><p>Discard these changes? {draft.existing ? 'Your previously saved memory will remain.' : 'This writing has not been saved.'}</p><div className="confirmation-actions"><button className="danger-button" onClick={discard}>Discard changes</button><button className="secondary-button" onClick={() => setConfirmDiscard(false)}>Keep writing</button></div></div>}
   </section>

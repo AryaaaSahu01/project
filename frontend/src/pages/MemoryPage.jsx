@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router'
 import { journalError, useJournal, useMemory } from '../lib/journal.js'
 import { formatReturnTime } from '../lib/capsuleSchedule.js'
 import Icon from '../components/Icon.jsx'
+import MediaAttachments from '../components/MediaAttachments.jsx'
 
 
 export default function MemoryPage() {
@@ -19,7 +20,8 @@ export default function MemoryPage() {
     refresh,
     draft,
     setDraft,
-    hasUnsaved
+    hasUnsaved,
+    pending
   } = useJournal()
 
   const [confirming, setConfirming] = useState('')
@@ -175,7 +177,7 @@ export default function MemoryPage() {
           {memory.can_open && (
             <button
               className='write-action'
-              disabled={busy}
+              disabled={busy  || Boolean(pending)}
               onClick={() => act('open')}
             >
               {busy ? 'Opening...' : 'Open capsule'}
@@ -204,10 +206,19 @@ export default function MemoryPage() {
         </>
       )}
 
-      <div className="reading-end">
-        <span className="brass-rule"/>
-        <p>A small moment, give a place.</p>
-      </div>
+      {!sealed && (
+        <MediaAttachments
+          key={id}
+          memoryID={id}
+          editable={memory.status === 'draft'}
+        />
+      )}
+
+      {pending > 0 && (
+        <p className='page-note' role = 'status'>
+          Finish or discard your upload or recording before sealing or deleting this memory.
+        </p>
+      )}
 
       {error && (
         <p className='form-error' role='alert'>
@@ -221,13 +232,15 @@ export default function MemoryPage() {
             <Link 
               className='write-action'
               to={`/capsules/new?memory=${id}`}
+              aria-disabled={Boolean(pending)}
+              onClick={(event) => {if (pending) event.preventDefault() }}
             >
               Seal for later
             </Link>
 
             <button
               className='secondary-button'
-              disabled={busy}
+              disabled={busy || Boolean(pending)}
               onClick={() => edit()}
             >
               Edit memory
@@ -237,7 +250,7 @@ export default function MemoryPage() {
 
         <button 
           className='text-button'
-          disabled={busy}
+          disabled={busy || Boolean(pending)}
           onClick={() => setConfirming('delete')}
         >
           Delete memory
@@ -251,13 +264,13 @@ export default function MemoryPage() {
       {confirming === 'delete' && (
         <div className='clear-confirmation'>
           <p>
-            Delete this memory permanently? This cannot be undone.
+            Delete this memory and its attachments permanently? This cannot be undone.
           </p>
 
           <div className='confirmation-actions'>
             <button
               className='danger-button'
-              disabled={busy}
+              disabled={busy || Boolean(pending)}
               onClick={() => act('delete')}
             >
               {busy ? 'Deleting...' : 'Delete permanently'}
@@ -265,7 +278,7 @@ export default function MemoryPage() {
 
             <button
               className='secondary-button'
-              disabled={busy}
+              disabled={busy || Boolean(pending)}
               onClick={() => setConfirming('')}
             >
               Keep memory
