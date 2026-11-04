@@ -19,6 +19,13 @@ web-build/
 
 #Local database
 
+# Private uploaded media and production secrets
+backend/.data/
+deploy/*.env
+deploy/*.pem
+deploy/*.key
+!deploy/*.env.example
+
 *.database
 *.db 
 *.sqlite
