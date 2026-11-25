@@ -1,7 +1,7 @@
 ![Time capsules](docs/screenshots/capsules.png)
 
 # For Reviewer
-1. I rewrote the AI and made it much simpler for it to pass as 100% human-written in pangram.
+1. I rewrote the readme and made it much simpler for it to pass as 100% human-written in pangram.
 2. If you think it's not detailed enough, you may check the past revisions.
 If it must be edited, please mention what it lacks in your note so that I can edit it accordingly instead of shooting arrows blindly.
 3. I was told how to run locally section is not mandatory for web apps.
